@@ -1,0 +1,204 @@
+.link-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 12000;
+  max-width: min(92vw, 420px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: #1a1630;
+  border: 1px solid rgba(155, 123, 255, 0.45);
+  color: #efeaff;
+  font: 600 12px/1.35 Orbitron, sans-serif;
+  letter-spacing: 0.05em;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.link-toast[hidden] {
+  display: none !important;
+}
+
+.link-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(109, 74, 255, 0.16), transparent 50%),
+    rgba(4, 6, 12, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.link-modal-overlay[hidden] {
+  display: none !important;
+}
+
+.link-modal {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  padding: 26px 24px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(155, 123, 255, 0.35);
+  background: linear-gradient(165deg, #121526 0%, #0a0d18 100%);
+  color: #eef1ff;
+  scrollbar-width: none;
+}
+
+.link-modal::-webkit-scrollbar {
+  display: none;
+}
+
+.link-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8b93b0;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.link-modal-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.link-modal h2 {
+  margin: 0 36px 12px 0;
+  font: 700 18px/1.25 Orbitron, sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.link-modal-body {
+  font: 500 14px/1.55 "JetBrains Mono", monospace;
+  color: #b8c0d8;
+}
+
+.link-modal-body p {
+  margin: 0 0 10px;
+}
+
+.link-modal-body ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.link-modal-body li {
+  margin: 4px 0;
+}
+
+.link-modal-body .stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.link-modal-body .stat-cell {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(155, 123, 255, 0.22);
+  background: rgba(8, 10, 18, 0.75);
+}
+
+.link-modal-body .stat-cell strong {
+  display: block;
+  margin-top: 4px;
+  color: #fff;
+  font: 700 16px/1 Orbitron, sans-serif;
+}
+
+.link-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.link-modal-btn {
+  border: 1px solid rgba(155, 123, 255, 0.35);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  color: #c9c2e8;
+  font: 700 11px/1 Orbitron, sans-serif;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.link-modal-btn.primary {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #6d4aff, #9b7bff);
+}
+
+.link-modal-btn:hover {
+  filter: brightness(1.08);
+}
+
+.link-notify {
+  position: fixed;
+  top: 72px;
+  right: 24px;
+  z-index: 11500;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(155, 123, 255, 0.4);
+  background: #14122a;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color: #e8e4ff;
+  font: 500 13px/1.45 "JetBrains Mono", monospace;
+}
+
+.link-notify[hidden] {
+  display: none !important;
+}
+
+.link-notify h3 {
+  margin: 0 0 10px;
+  font: 700 12px/1 Orbitron, sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.link-notify .n-item {
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.link-notify .n-item:first-of-type {
+  border-top: 0;
+}
+
+.link-notify .n-meta {
+  display: block;
+  margin-top: 4px;
+  color: #8b93b0;
+  font-size: 11px;
+}
+
+.msn-track.is-tracking {
+  background: linear-gradient(135deg, #6d4aff, #9b7bff) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+.dash.theme-light .link-modal {
+  background: linear-gradient(165deg, #f7f5ff 0%, #ebe6ff 100%);
+  color: #1c1638;
+}
+
+.dash.theme-light .link-modal-body {
+  color: #5c5678;
+}

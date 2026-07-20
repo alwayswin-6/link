@@ -73,12 +73,14 @@
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   padding: 16px 20px 22px;
   gap: 10px;
-  overflow: visible;
   z-index: 2;
-  position: relative;
+  /* Stay pinned in the viewport while the main column scrolls */
+  position: sticky;
+  top: 0;
   align-self: start;
-  height: auto;
-  min-height: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -159,7 +161,15 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.dash-nav::-webkit-scrollbar {
+  display: none !important;
 }
 
 .dash-nav-item {
@@ -250,6 +260,7 @@
 .dash-profile-card {
   margin-top: auto;
   margin-bottom: 8px;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -455,7 +466,8 @@
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  margin-top: 20px;
+  flex: 0 0 auto;
+  margin-top: 12px;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -629,6 +641,10 @@
 
 .dash-currency-plus:hover {
   filter: brightness(1.1);
+}
+
+.dash-user-chip[hidden] {
+  display: none !important;
 }
 
 .dash-user-chip {

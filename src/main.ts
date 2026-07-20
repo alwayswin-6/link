@@ -3,6 +3,7 @@ import { dashboardHTML, gameViewHTML } from './dashboard';
 import { ChatApp } from './chat';
 import { Game, type HudState } from './game/Game';
 import { initAuth, requireAuth } from './auth';
+import { initInteractions } from './interactions';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = dashboardHTML() + gameViewHTML();
@@ -142,6 +143,10 @@ dashboard.querySelectorAll('.dash-nav-item').forEach((el) => {
     }
 
     showHome();
+
+    if (nav === 'ranking') {
+      document.querySelector('#section-ranking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   });
 });
 
@@ -207,3 +212,12 @@ function initHeroCarousel(): void {
 
 initHeroCarousel();
 void initAuth();
+initInteractions({
+  showGame: () => {
+    if (!requireAuth()) return;
+    showGame();
+  },
+  showChat,
+  showHome,
+  setActiveNav,
+});

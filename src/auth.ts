@@ -63,7 +63,7 @@ export function getAuthUser(): AuthUser | null {
 
 export function requireAuth(openIfGuest = true): boolean {
   if (currentUser) return true;
-  if (openIfGuest) openAuthModal('login');
+  if (openIfGuest) openAuthModal('signup');
   return false;
 }
 
@@ -226,11 +226,14 @@ function updateChrome(user: AuthUser | null): void {
   const userChip = document.querySelector<HTMLButtonElement>('#auth-user-chip');
 
   if (profileName) profileName.textContent = user ? user.username.toUpperCase() : 'GUEST';
-  if (userName) userName.textContent = user ? user.username.toUpperCase() : 'SIGN IN';
+  if (userName) userName.textContent = user ? user.username.toUpperCase() : 'PLAYER';
+
+  // Guest: only SIGN UP. Signed in: hide SIGN UP / SIGN IN, show avatar chip.
   if (guestBar) guestBar.hidden = !!user;
   if (userChip) {
+    userChip.hidden = !user;
     userChip.dataset.authed = user ? '1' : '0';
-    userChip.title = user ? `${user.email} · Sign out` : 'Sign in';
+    userChip.title = user ? `${user.email} · Click to sign out` : '';
   }
 }
 
@@ -294,19 +297,18 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
     guest.id = 'auth-guest-actions';
     guest.className = 'auth-guest-actions';
     guest.innerHTML = `
-      <button type="button" class="auth-top-btn ghost" id="auth-open-login">SIGN IN</button>
       <button type="button" class="auth-top-btn" id="auth-open-signup">SIGN UP</button>
     `;
-    const chip = topRight.querySelector('.dash-user-chip');
+    const chip = topRight.querySelector('#auth-user-chip') ?? topRight.querySelector('.dash-user-chip');
     if (chip) {
       chip.id = 'auth-user-chip';
+      (chip as HTMLElement).hidden = true;
       topRight.insertBefore(guest, chip);
     } else {
       topRight.appendChild(guest);
     }
   }
 
-  document.querySelector('#auth-open-login')?.addEventListener('click', () => openAuthModal('login'));
   document.querySelector('#auth-open-signup')?.addEventListener('click', () => openAuthModal('signup'));
   document.querySelector('#auth-close')?.addEventListener('click', closeAuthModal);
   document.querySelector('#auth-overlay')?.addEventListener('click', (e) => {
@@ -327,12 +329,9 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
   });
 
   document.querySelector('#auth-user-chip')?.addEventListener('click', async () => {
-    if (currentUser) {
-      await logout();
-      showToast('Signed out');
-      return;
-    }
-    openAuthModal('login');
+    if (!currentUser) return;
+    await logout();
+    showToast('Signed out');
   });
 
   document.querySelector('#auth-login-form')?.addEventListener('submit', async (e) => {

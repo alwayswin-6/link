@@ -1,5 +1,7 @@
 /** LINK Chat Room — Telegram-inspired messaging UI with mock real-time behavior */
 
+import { showToast } from './ui';
+
 export type ChatKind = 'dm' | 'group' | 'channel';
 export type ChatFilter = 'all' | 'unread' | 'pinned' | 'groups' | 'channels' | 'friends' | 'favorites' | 'archive';
 
@@ -435,6 +437,57 @@ export class ChatApp {
       this.select(id);
     });
 
+    this.el('#chat-attach').addEventListener('click', () => {
+      const c = this.active();
+      c.messages.push({
+        id: `f-${Date.now()}`,
+        from: 'me',
+        text: 'Shared a file',
+        time: 'Now',
+        status: 'sent',
+        type: 'file',
+        fileName: 'link-clip.png',
+        fileSize: '1.2 MB',
+      });
+      c.preview = '📎 link-clip.png';
+      c.time = 'Now';
+      this.renderMessages();
+      this.renderList();
+      showToast('Attachment added');
+    });
+
+    this.el('#chat-voice').addEventListener('click', () => {
+      const c = this.active();
+      c.messages.push({
+        id: `v-${Date.now()}`,
+        from: 'me',
+        text: 'Voice message',
+        time: 'Now',
+        status: 'sent',
+        type: 'voice',
+      });
+      c.preview = '🎤 Voice message';
+      c.time = 'Now';
+      this.renderMessages();
+      this.renderList();
+      showToast('Voice message sent');
+    });
+
+    this.el('#chat-messages').addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('.chat-voice-play')) {
+        const btn = t.closest<HTMLButtonElement>('.chat-voice-play')!;
+        const playing = btn.dataset.playing === '1';
+        btn.dataset.playing = playing ? '0' : '1';
+        btn.textContent = playing ? '▶' : '❚❚';
+        showToast(playing ? 'Voice paused' : 'Playing voice message…');
+        return;
+      }
+      if (t.closest('.chat-file-dl')) {
+        showToast('Download started (demo)');
+      }
+    });
+
     window.addEventListener('resize', () => {
       if (window.innerWidth < 1100) this.toggleInfo(false);
     });
@@ -611,15 +664,32 @@ export class ChatApp {
         </div>
       </div>
       <div class="chat-thread-actions">
-        <button type="button" class="chat-tool" title="Search in chat">${icons.search()}</button>
-        <button type="button" class="chat-tool" title="Call">${icons.phone()}</button>
+        <button type="button" class="chat-tool" data-chat-act="search" title="Search in chat">${icons.search()}</button>
+        <button type="button" class="chat-tool" data-chat-act="call" title="Call">${icons.phone()}</button>
         <button type="button" class="chat-tool" id="chat-info-toggle" title="Details">${icons.info()}</button>
-        <button type="button" class="chat-tool" title="More">${icons.more()}</button>
+        <button type="button" class="chat-tool" data-chat-act="more" title="More">${icons.more()}</button>
       </div>
     `;
     this.el('#chat-back-list')?.addEventListener('click', () => {
       this.root.classList.remove('thread-open');
       this.root.classList.add('list-open');
+    });
+    this.el('#chat-thread-head').querySelectorAll<HTMLButtonElement>('[data-chat-act]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.chatAct;
+        if (act === 'search') {
+          const q = prompt('Search in this chat…', '');
+          if (q?.trim()) showToast(`No matches for “${q.trim()}”`);
+          return;
+        }
+        if (act === 'call') {
+          showToast(`Calling ${this.active().name}…`);
+          return;
+        }
+        if (act === 'more') {
+          this.openContext(btn.getBoundingClientRect().left, btn.getBoundingClientRect().bottom + 6, this.activeId);
+        }
+      });
     });
   }
 
@@ -671,18 +741,18 @@ export class ChatApp {
         <h4>${escapeHtml(c.name)}</h4>
         <p>${escapeHtml(c.statusText ?? '')}</p>
         <div class="chat-info-actions">
-          <button type="button">${icons.phone()} Call</button>
-          <button type="button">${icons.search()} Search</button>
-          <button type="button">${icons.mute()} Mute</button>
+          <button type="button" data-info-act="call">${icons.phone()} Call</button>
+          <button type="button" data-info-act="search">${icons.search()} Search</button>
+          <button type="button" data-info-act="mute">${icons.mute()} Mute</button>
         </div>
       </div>
-      <div class="chat-info-tabs">
-        <button type="button" class="active">Media</button>
-        <button type="button">Files</button>
-        <button type="button">Links</button>
-        <button type="button">Pinned</button>
+      <div class="chat-info-tabs" id="chat-info-tabs">
+        <button type="button" class="active" data-tab="Media">Media</button>
+        <button type="button" data-tab="Files">Files</button>
+        <button type="button" data-tab="Links">Links</button>
+        <button type="button" data-tab="Pinned">Pinned</button>
       </div>
-      <div class="chat-media-grid">
+      <div class="chat-media-grid" id="chat-info-panel-content">
         ${[0, 1, 2, 3, 4, 5]
           .map((i) => `<button type="button" class="chat-media-tile"><img src="${AVATARS[i % AVATARS.length]}" alt="" /></button>`)
           .join('')}
@@ -705,5 +775,56 @@ export class ChatApp {
             </div>`
       }
     `;
+
+    this.el('#chat-info-body').querySelectorAll<HTMLButtonElement>('[data-info-act]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const act = btn.dataset.infoAct;
+        if (act === 'call') showToast(`Calling ${c.name}…`);
+        if (act === 'search') {
+          const q = prompt('Search shared content…', '');
+          if (q?.trim()) showToast(`Searching for “${q.trim()}”…`);
+        }
+        if (act === 'mute') {
+          c.muted = !c.muted;
+          showToast(c.muted ? `${c.name} muted` : `${c.name} unmuted`);
+          this.renderList();
+        }
+      });
+    });
+
+    const tabsRoot = this.el('#chat-info-tabs');
+    tabsRoot?.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabsRoot.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === tab));
+        const name = tab.dataset.tab || 'Media';
+        const panel = this.el('#chat-info-panel-content');
+        if (name === 'Media') {
+          panel.className = 'chat-media-grid';
+          panel.innerHTML = [0, 1, 2, 3, 4, 5]
+            .map(
+              (i) =>
+                `<button type="button" class="chat-media-tile"><img src="${AVATARS[i % AVATARS.length]}" alt="" /></button>`,
+            )
+            .join('');
+          panel.querySelectorAll<HTMLButtonElement>('.chat-media-tile').forEach((tile) => {
+            tile.addEventListener('click', () => showToast('Opening media preview…'));
+          });
+        } else if (name === 'Files') {
+          panel.className = 'chat-info-list';
+          panel.innerHTML = `<p>link-clip.png · 1.2 MB</p><p>match-replay.lnk · 4.8 MB</p>`;
+        } else if (name === 'Links') {
+          panel.className = 'chat-info-list';
+          panel.innerHTML = `<p>https://link.gg/events/neon-storm</p><p>https://link.gg/patch-notes</p>`;
+        } else {
+          panel.className = 'chat-info-list';
+          panel.innerHTML = `<p>Pinned: “Who is free for custom lobby?”</p>`;
+        }
+        showToast(`${name} tab`);
+      });
+    });
+
+    this.el('#chat-info-body').querySelectorAll<HTMLButtonElement>('.chat-media-tile').forEach((tile) => {
+      tile.addEventListener('click', () => showToast('Opening media preview…'));
+    });
   }
 }

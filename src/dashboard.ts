@@ -22,32 +22,8 @@ export function dashboardHTML(): string {
           <span class="dash-nav-icon">${iconChat()}</span> CHAT
           <span class="nav-badge">16</span>
         </a>
-        <a class="dash-nav-item" href="#loadout" data-nav="loadout">
-          <span class="dash-nav-icon">${iconLoadout()}</span> LOADOUT
-        </a>
-        <a class="dash-nav-item" href="#customize" data-nav="customize">
-          <span class="dash-nav-icon">${iconCustomize()}</span> CUSTOMIZE
-        </a>
-        <a class="dash-nav-item" href="#shop" data-nav="shop">
-          <span class="dash-nav-icon">${iconShop()}</span> SHOP
-        </a>
-        <a class="dash-nav-item" href="#missions" data-nav="missions">
-          <span class="dash-nav-icon">${iconMissions()}</span> MISSIONS
-        </a>
-        <a class="dash-nav-item" href="#leaderboard" data-nav="leaderboard">
-          <span class="dash-nav-icon">${iconLeaderboard()}</span> LEADERBOARD
-        </a>
-        <a class="dash-nav-item" href="#clan" data-nav="clan">
-          <span class="dash-nav-icon">${iconClan()}</span> CLAN
-        </a>
-        <a class="dash-nav-item" href="#news" data-nav="news">
-          <span class="dash-nav-icon">${iconNews()}</span> NEWS
-        </a>
-        <a class="dash-nav-item" href="#settings" data-nav="settings">
-          <span class="dash-nav-icon">${iconSettings()}</span> SETTINGS
-        </a>
-        <a class="dash-nav-item dash-nav-exit" href="#exit" data-nav="exit">
-          <span class="dash-nav-icon">${iconExit()}</span> EXIT
+        <a class="dash-nav-item" href="#leaderboard" data-nav="ranking" id="nav-ranking">
+          <span class="dash-nav-icon">${iconLeaderboard()}</span> RANKING
         </a>
       </nav>
 
@@ -93,11 +69,11 @@ export function dashboardHTML(): string {
             <span class="dash-currency-value">2,450</span>
             <button type="button" class="dash-currency-plus" aria-label="Add currency">+</button>
           </div>
-          <button type="button" class="dash-user-chip">
+          <button type="button" class="dash-user-chip" id="auth-user-chip" hidden>
             <span class="dash-user-avatar"><img class="dash-fill" src="/position/user2.png" alt="Player avatar" /></span>
             <span class="dash-user-meta">
               <span class="dash-online-dot" title="Online" aria-label="Online"></span>
-              <span class="dash-user-name">SIGN IN</span>
+              <span class="dash-user-name">PLAYER</span>
             </span>
             <span class="dash-chevron" aria-hidden="true">▾</span>
           </button>
@@ -159,6 +135,7 @@ export function dashboardHTML(): string {
               button: 'START RANKED',
               badge: 'COMPETITIVE',
               featured: true,
+              buttonId: 'mode-ranked',
             })}
             ${modeCard({
               color: 'orange',
@@ -168,6 +145,7 @@ export function dashboardHTML(): string {
               chips: [['👥', 'Private Lobby'], ['🎮', 'Invite Friends'], ['⚙️', 'Custom Rules']],
               button: 'CREATE LOBBY',
               status: 'OPEN',
+              buttonId: 'mode-custom',
             })}
             ${modeCard({
               color: 'green',
@@ -177,6 +155,7 @@ export function dashboardHTML(): string {
               chips: [['🎯', 'Practice Arena'], ['🤖', 'AI Bots'], ['📚', 'Tutorials']],
               button: 'START TRAINING',
               status: 'AI READY',
+              buttonId: 'mode-training',
             })}
           </div>
         </section>
@@ -276,7 +255,7 @@ export function dashboardHTML(): string {
         </section>
 
         <!-- LEADERBOARD -->
-        <section class="dash-section feat">
+        <section class="dash-section feat" id="section-ranking">
           <div class="dash-section-head">
             <h2 class="dash-section-title feat lg gold"><span class="dash-accent gold"></span>LEADERBOARD TOP PLAYERS</h2>
             <a class="dash-view-all gold lb-viewall" href="#">View Full Leaderboard <span class="lb-arrow">${iconArrowRight()}</span></a>
@@ -593,32 +572,8 @@ function iconPlay() {
 function iconChat() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 14a3 3 0 0 1-3 3H8l-5 4V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z"/></svg>`;
 }
-function iconLoadout() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`;
-}
-function iconCustomize() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>`;
-}
-function iconShop() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h12l-1 12H7L6 7z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>`;
-}
-function iconMissions() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
-}
 function iconLeaderboard() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M5 8H3a2 2 0 0 0 2 4h0M19 8h2a2 2 0 0 1-2 4h0"/></svg>`;
-}
-function iconClan() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7l-8-4z"/></svg>`;
-}
-function iconNews() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8V6z"/></svg>`;
-}
-function iconSettings() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`;
-}
-function iconExit() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
 }
 function iconRank() {
   return `<svg viewBox="0 0 16 16" width="12" height="12" fill="#c084fc"><path d="M8 1 3 3v4c0 3.2 2.2 5.5 5 6 2.8-.5 5-2.8 5-6V3L8 1z"/></svg>`;
