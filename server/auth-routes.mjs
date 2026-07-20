@@ -1,0 +1,210 @@
+import { Router } from 'express';
+import {
+  confirmPendingSignup,
+  createPendingSignup,
+  createSession,
+  destroySession,
+  findUserByEmail,
+  findUserByUsername,
+  getPending,
+  getSessionUser,
+  publicUser,
+  resendPendingOtp,
+  setPendingEmailStatus,
+  verifyPassword,
+} from './store.mjs';
+import { sendOtpEmail } from './mail.mjs';
+import { registerOAuthRoutes } from './oauth.mjs';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function bearer(req) {
+  const h = req.headers.authorization || '';
+  const m = /^Bearer\s+(.+)$/i.exec(h);
+  return m?.[1] ?? req.body?.token ?? null;
+}
+
+function validateRegister({ email, username, password }) {
+  if (!email || !EMAIL_RE.test(email)) return 'Enter a valid email address.';
+  if (!username || username.trim().length < 2) return 'Name must be at least 2 characters.';
+  if (username.trim().length > 24) return 'Name must be 24 characters or fewer.';
+  if (!/^[a-zA-Z0-9_ ]+$/.test(username.trim())) {
+    return 'Name may only contain letters, numbers, spaces, and underscores.';
+  }
+  if (!password || password.length < 8) return 'Password must be at least 8 characters.';
+  if (password.length > 128) return 'Password is too long.';
+  return null;
+}
+
+function inboxHint(email) {
+  if (/@(gmail|googlemail)\.com$/i.test(email)) {
+    return { provider: 'gmail', url: 'https://mail.google.com/' };
+  }
+  if (/@(outlook|hotmail|live|msn)\.com$/i.test(email)) {
+    return { provider: 'outlook', url: 'https://outlook.live.com/mail/' };
+  }
+  return { provider: 'email', url: null };
+}
+
+async function deliverOtp(mailer, pending) {
+  try {
+    await sendOtpEmail(mailer, {
+      to: pending.email,
+      username: pending.username,
+      code: pending.code,
+    });
+    setPendingEmailStatus(pending.id, 'sent');
+    console.log(`[mail] OTP delivered to ${pending.email}`);
+    return true;
+  } catch (mailErr) {
+    const msg = mailErr?.message || String(mailErr);
+    console.error('[mail] OTP send failed:', msg);
+    setPendingEmailStatus(pending.id, 'failed', msg);
+    return false;
+  }
+}
+
+export function createAuthRouter(mailer) {
+  const router = Router();
+  registerOAuthRoutes(router);
+
+  /** Step 1: name + email + password → create pending, send OTP, then client shows verify page */
+  router.post('/register/start', async (req, res) => {
+    try {
+      const { email, username, password, name } = req.body ?? {};
+      const displayName = String(name || username || '').trim();
+      const error = validateRegister({ email, username: displayName, password });
+      if (error) return res.status(400).json({ ok: false, error });
+
+      if (findUserByEmail(email)) {
+        return res.status(409).json({ ok: false, error: 'An account with this email already exists.' });
+      }
+      const uname = displayName.replace(/\s+/g, '_');
+      if (findUserByUsername(uname)) {
+        return res.status(409).json({ ok: false, error: 'That name is already taken.' });
+      }
+
+      const hint = inboxHint(email);
+      const pending = createPendingSignup({
+        email,
+        username: uname,
+        password,
+        provider: hint.provider,
+      });
+
+      // Respond immediately so the UI can open the verification page,
+      // then deliver the OTP in the background (Gmail SMTP can be slow).
+      res.status(200).json({
+        ok: true,
+        pendingId: pending.id,
+        email: pending.email,
+        inbox: hint,
+        message: `Sending a 6-digit code to ${pending.email}…`,
+      });
+
+      void deliverOtp(mailer, pending);
+      return;
+    } catch (err) {
+      console.error('[auth/register/start]', err);
+      return res.status(500).json({ ok: false, error: 'Could not start registration.' });
+    }
+  });
+
+  router.get('/register/status/:pendingId', (req, res) => {
+    const row = getPending(req.params.pendingId);
+    if (!row) return res.status(404).json({ ok: false, error: 'Verification expired.' });
+    return res.json({
+      ok: true,
+      email: row.email,
+      emailStatus: row.emailStatus || 'unknown',
+      emailError: row.emailError,
+      inbox: inboxHint(row.email),
+    });
+  });
+
+  router.post('/register/confirm', (req, res) => {
+    try {
+      const pendingId = String(req.body?.pendingId ?? '');
+      const code = String(req.body?.code ?? '').trim();
+      if (!pendingId || !/^\d{6}$/.test(code)) {
+        return res.status(400).json({ ok: false, error: 'Enter the 6-digit verification code.' });
+      }
+
+      const result = confirmPendingSignup(pendingId, code);
+      if (!result.ok) return res.status(400).json(result);
+
+      const token = createSession(result.user.id);
+      return res.status(201).json({
+        ok: true,
+        message: 'Registration complete.',
+        token,
+        user: publicUser(result.user),
+      });
+    } catch (err) {
+      console.error('[auth/register/confirm]', err);
+      return res.status(500).json({ ok: false, error: 'Could not complete registration.' });
+    }
+  });
+
+  router.post('/register/resend', async (req, res) => {
+    try {
+      const pendingId = String(req.body?.pendingId ?? '');
+      const row = getPending(pendingId);
+      if (!row) {
+        return res.status(400).json({ ok: false, error: 'Verification expired. Start sign-up again.' });
+      }
+      const next = resendPendingOtp(pendingId);
+      if (!next) {
+        return res.status(400).json({ ok: false, error: 'Verification expired. Start sign-up again.' });
+      }
+      const sent = await deliverOtp(mailer, next);
+      if (!sent) {
+        return res.status(502).json({ ok: false, error: 'Could not resend the code. Try again shortly.' });
+      }
+      return res.json({ ok: true, message: 'A new verification code was sent.' });
+    } catch (err) {
+      console.error('[auth/register/resend]', err);
+      return res.status(500).json({ ok: false, error: 'Could not resend the code.' });
+    }
+  });
+
+  router.post('/login', (req, res) => {
+    try {
+      const email = String(req.body?.email ?? '').trim().toLowerCase();
+      const password = String(req.body?.password ?? '');
+      if (!EMAIL_RE.test(email) || !password) {
+        return res.status(400).json({ ok: false, error: 'Email and password are required.' });
+      }
+
+      const user = findUserByEmail(email);
+      if (!user || !user.password || !verifyPassword(password, user.password)) {
+        return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
+      }
+      if (!user.verified) {
+        return res.status(403).json({
+          ok: false,
+          error: 'This account is not verified. Sign up again to receive a new code.',
+        });
+      }
+
+      const token = createSession(user.id);
+      return res.json({ ok: true, token, user: publicUser(user) });
+    } catch (err) {
+      console.error('[auth/login]', err);
+      return res.status(500).json({ ok: false, error: 'Login failed.' });
+    }
+  });
+
+  router.get('/me', (req, res) => {
+    const user = getSessionUser(bearer(req));
+    if (!user) return res.status(401).json({ ok: false, error: 'Not signed in.' });
+    return res.json({ ok: true, user: publicUser(user) });
+  });
+
+  router.post('/logout', (req, res) => {
+    destroySession(bearer(req));
+    return res.json({ ok: true });
+  });
+
+  return router;
+}

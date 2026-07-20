@@ -1,0 +1,28 @@
+{
+  "name": "link",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "seed:admin": "node scripts/seed-admin.mjs",
+    "predev": "node scripts/ensure-env.mjs && node scripts/seed-admin.mjs",
+    "prebuild": "node scripts/seed-admin.mjs",
+    "dev:api": "node server/index.mjs",
+    "dev:web": "vite",
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "start:api": "node server/index.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "typescript": "~5.7.3",
+    "vite": "^5.4.11"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "nodemailer": "^7.0.5"
+  }
+}
