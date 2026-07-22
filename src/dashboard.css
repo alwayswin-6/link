@@ -647,6 +647,10 @@
   display: none !important;
 }
 
+.dash-profile-card[hidden] {
+  display: none !important;
+}
+
 .dash-user-chip {
   display: flex;
   align-items: center;
@@ -844,8 +848,22 @@
     0 8px 24px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.28);
   transition: transform 0.15s, box-shadow 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.dash-download-icon {
   display: inline-grid;
   place-items: center;
+  flex-shrink: 0;
+}
+.dash-download-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  stroke: currentColor;
 }
 
 .dash-btn-play:hover {

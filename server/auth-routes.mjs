@@ -53,13 +53,13 @@ async function deliverOtp(mailer, pending) {
       username: pending.username,
       code: pending.code,
     });
-    setPendingEmailStatus(pending.id, 'sent');
+    await setPendingEmailStatus(pending.id, 'sent');
     console.log(`[mail] OTP delivered to ${pending.email}`);
     return true;
   } catch (mailErr) {
     const msg = mailErr?.message || String(mailErr);
     console.error('[mail] OTP send failed:', msg);
-    setPendingEmailStatus(pending.id, 'failed', msg);
+    await setPendingEmailStatus(pending.id, 'failed', msg);
     return false;
   }
 }
@@ -76,16 +76,16 @@ export function createAuthRouter(mailer) {
       const error = validateRegister({ email, username: displayName, password });
       if (error) return res.status(400).json({ ok: false, error });
 
-      if (findUserByEmail(email)) {
+      if (await findUserByEmail(email)) {
         return res.status(409).json({ ok: false, error: 'An account with this email already exists.' });
       }
       const uname = displayName.replace(/\s+/g, '_');
-      if (findUserByUsername(uname)) {
+      if (await findUserByUsername(uname)) {
         return res.status(409).json({ ok: false, error: 'That name is already taken.' });
       }
 
       const hint = inboxHint(email);
-      const pending = createPendingSignup({
+      const pending = await createPendingSignup({
         email,
         username: uname,
         password,
@@ -110,8 +110,8 @@ export function createAuthRouter(mailer) {
     }
   });
 
-  router.get('/register/status/:pendingId', (req, res) => {
-    const row = getPending(req.params.pendingId);
+  router.get('/register/status/:pendingId', async (req, res) => {
+    const row = await getPending(req.params.pendingId);
     if (!row) return res.status(404).json({ ok: false, error: 'Verification expired.' });
     return res.json({
       ok: true,
@@ -122,7 +122,7 @@ export function createAuthRouter(mailer) {
     });
   });
 
-  router.post('/register/confirm', (req, res) => {
+  router.post('/register/confirm', async (req, res) => {
     try {
       const pendingId = String(req.body?.pendingId ?? '');
       const code = String(req.body?.code ?? '').trim();
@@ -130,10 +130,10 @@ export function createAuthRouter(mailer) {
         return res.status(400).json({ ok: false, error: 'Enter the 6-digit verification code.' });
       }
 
-      const result = confirmPendingSignup(pendingId, code);
+      const result = await confirmPendingSignup(pendingId, code);
       if (!result.ok) return res.status(400).json(result);
 
-      const token = createSession(result.user.id);
+      const token = await createSession(result.user.id);
       return res.status(201).json({
         ok: true,
         message: 'Registration complete.',
@@ -149,11 +149,11 @@ export function createAuthRouter(mailer) {
   router.post('/register/resend', async (req, res) => {
     try {
       const pendingId = String(req.body?.pendingId ?? '');
-      const row = getPending(pendingId);
+      const row = await getPending(pendingId);
       if (!row) {
         return res.status(400).json({ ok: false, error: 'Verification expired. Start sign-up again.' });
       }
-      const next = resendPendingOtp(pendingId);
+      const next = await resendPendingOtp(pendingId);
       if (!next) {
         return res.status(400).json({ ok: false, error: 'Verification expired. Start sign-up again.' });
       }
@@ -168,7 +168,7 @@ export function createAuthRouter(mailer) {
     }
   });
 
-  router.post('/login', (req, res) => {
+  router.post('/login', async (req, res) => {
     try {
       const email = String(req.body?.email ?? '').trim().toLowerCase();
       const password = String(req.body?.password ?? '');
@@ -176,7 +176,7 @@ export function createAuthRouter(mailer) {
         return res.status(400).json({ ok: false, error: 'Email and password are required.' });
       }
 
-      const user = findUserByEmail(email);
+      const user = await findUserByEmail(email);
       if (!user || !user.password || !verifyPassword(password, user.password)) {
         return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
       }
@@ -187,7 +187,7 @@ export function createAuthRouter(mailer) {
         });
       }
 
-      const token = createSession(user.id);
+      const token = await createSession(user.id);
       return res.json({ ok: true, token, user: publicUser(user) });
     } catch (err) {
       console.error('[auth/login]', err);
@@ -195,14 +195,14 @@ export function createAuthRouter(mailer) {
     }
   });
 
-  router.get('/me', (req, res) => {
-    const user = getSessionUser(bearer(req));
+  router.get('/me', async (req, res) => {
+    const user = await getSessionUser(bearer(req));
     if (!user) return res.status(401).json({ ok: false, error: 'Not signed in.' });
     return res.json({ ok: true, user: publicUser(user) });
   });
 
-  router.post('/logout', (req, res) => {
-    destroySession(bearer(req));
+  router.post('/logout', async (req, res) => {
+    await destroySession(bearer(req));
     return res.json({ ok: true });
   });
 

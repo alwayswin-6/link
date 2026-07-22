@@ -3,6 +3,7 @@
 @import './chat.css';
 @import './auth.css';
 @import './ui.css';
+@import './pages.css';
 
 :root {
   --bg: #05070f;

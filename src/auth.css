@@ -83,15 +83,20 @@
 }
 
 .auth-top-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
   border: 0;
-  border-radius: 8px;
-  padding: 8px 14px;
-  font: 700 11px/1 Orbitron, sans-serif;
+  border-radius: 12px;
+  padding: 0 22px;
+  font: 700 13px/1 Orbitron, sans-serif;
   letter-spacing: 0.08em;
   cursor: pointer;
   color: #fff;
   background: linear-gradient(135deg, #6d4aff, #9b7bff);
   transition: filter 0.15s ease, transform 0.15s ease;
+  box-sizing: border-box;
 }
 
 .auth-top-btn:hover {
@@ -103,6 +108,63 @@
   background: transparent;
   color: #c9c2e8;
   border: 1px solid rgba(155, 123, 255, 0.45);
+}
+
+/* Account chip dropdown (User Profile / Log Out) */
+.auth-user-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.auth-user-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  padding: 6px;
+  background: #0d1422;
+  border: 1px solid rgba(120, 140, 180, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.auth-user-menu[hidden] {
+  display: none !important;
+}
+
+.auth-user-menu-item {
+  text-align: left;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #e8eefc;
+  font: 700 13px/1 'Rajdhani', sans-serif;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.auth-user-menu-item:hover {
+  background: rgba(168, 85, 247, 0.16);
+  color: #fff;
+}
+
+.auth-user-menu-item[data-act='logout'] {
+  color: #ff9b9b;
+}
+
+.auth-user-menu-item[data-act='logout']:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fff;
+}
+
+.dash-user-chip.open .dash-chevron {
+  transform: rotate(180deg);
 }
 
 .auth-overlay {

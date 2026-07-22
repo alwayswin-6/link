@@ -85,13 +85,13 @@ export function registerOAuthRoutes(router) {
       const profile = await profileRes.json();
       if (!profile.email) return res.redirect(`${appUrl()}/?authError=google_email`);
 
-      const user = upsertOAuthUser({
+      const user = await upsertOAuthUser({
         email: profile.email,
         username: profile.name || profile.given_name || profile.email.split('@')[0],
         provider: 'google',
         providerId: profile.sub,
       });
-      const session = createSession(user.id);
+      const session = await createSession(user.id);
       return res.redirect(`${appUrl()}/?authToken=${session}`);
     } catch (err) {
       console.error('[oauth/google]', err);
@@ -160,13 +160,13 @@ export function registerOAuthRoutes(router) {
       const email = profile.mail || profile.userPrincipalName;
       if (!email) return res.redirect(`${appUrl()}/?authError=outlook_email`);
 
-      const user = upsertOAuthUser({
+      const user = await upsertOAuthUser({
         email,
         username: profile.displayName || email.split('@')[0],
         provider: 'microsoft',
         providerId: profile.id,
       });
-      const session = createSession(user.id);
+      const session = await createSession(user.id);
       return res.redirect(`${appUrl()}/?authToken=${session}`);
     } catch (err) {
       console.error('[oauth/outlook]', err);

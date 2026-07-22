@@ -21,6 +21,12 @@ import {
   type ManagedUser,
   type UserStatus,
 } from './data';
+import {
+  bindFilesPage,
+  renderFilesPage,
+  serverAdminLogin,
+  serverAdminLogout,
+} from './files';
 
 type Page =
   | 'overview'
@@ -30,6 +36,7 @@ type Page =
   | 'announcements'
   | 'analytics'
   | 'audit'
+  | 'files'
   | 'settings';
 
 const root = document.querySelector<HTMLDivElement>('#admin-root')!;
@@ -123,6 +130,8 @@ function renderLogin(): void {
         btn.textContent = 'AUTHENTICATE';
         return;
       }
+      // Also authenticate with the API so the file manager can upload (best-effort).
+      await serverAdminLogin(email, password);
       session = createSession();
       page = 'overview';
       toast(`Welcome, ${session.displayName}`);
@@ -502,6 +511,7 @@ function pageTitle(): { title: string; sub: string } {
     announcements: { title: 'Announcements', sub: 'Broadcast to audiences' },
     analytics: { title: 'Analytics', sub: 'Growth, retention, and economy' },
     audit: { title: 'Audit Log', sub: 'Immutable administrative history' },
+    files: { title: 'File Manager', sub: 'Upload files and share instant-download URLs' },
     settings: { title: 'System Settings', sub: 'Maintenance, features, server config' },
   };
   return map[page];
@@ -524,6 +534,8 @@ function renderBody(): string {
       return renderAnalytics();
     case 'audit':
       return renderAudit();
+    case 'files':
+      return renderFilesPage();
     case 'settings':
       return renderSettings();
   }
@@ -543,6 +555,7 @@ function renderShell(): void {
         ${navBtn('announcements', 'Announcements')}
         ${navBtn('analytics', 'Analytics')}
         ${navBtn('audit', 'Audit Log')}
+        ${navBtn('files', 'File Manager')}
         ${navBtn('settings', 'Settings')}
         <div class="admin-side-foot">
           <div class="admin-who">${escapeHtml(session.displayName)}<small>${escapeHtml(roleLabel(session.role))}</small></div>
@@ -571,6 +584,7 @@ function bindShell(): void {
     });
   });
   root.querySelector('#admin-logout')?.addEventListener('click', () => {
+    void serverAdminLogout();
     clearSession();
     session = null;
     render();
@@ -588,6 +602,7 @@ function bindShell(): void {
   bindReports();
   bindAnnouncements();
   bindSettings();
+  if (page === 'files') bindFilesPage(root, toast);
 }
 
 function bindUserPage(): void {

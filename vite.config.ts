@@ -24,6 +24,12 @@ export default defineConfig({
         timeout: 90_000,
         proxyTimeout: 90_000,
       },
+      // Real-time chat WebSocket
+      '/ws': {
+        target: 'ws://127.0.0.1:3001',
+        ws: true,
+        changeOrigin: true,
+      },
     },
     watch: {
       // Large binaries + generated/runtime data cause Windows watcher storms / high CPU.

@@ -7,6 +7,8 @@ export interface AuthUser {
   username: string;
   provider?: string | null;
   verified: boolean;
+  rank?: number;
+  rating?: number;
   createdAt: string;
 }
 
@@ -59,6 +61,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getAuthUser(): AuthUser | null {
   return currentUser;
+}
+
+export function getAuthToken(): string | null {
+  return token();
 }
 
 export function requireAuth(openIfGuest = true): boolean {
@@ -222,19 +228,84 @@ export function closeAuthModal(): void {
 function updateChrome(user: AuthUser | null): void {
   const profileName = document.querySelector<HTMLElement>('.dash-profile-name');
   const userName = document.querySelector<HTMLElement>('.dash-user-name');
+  const profileRank = document.querySelector<HTMLElement>('.dash-profile-rank');
+  const profileCard = document.querySelector<HTMLElement>('#dash-profile-card');
   const guestBar = document.querySelector<HTMLElement>('#auth-guest-actions');
   const userChip = document.querySelector<HTMLButtonElement>('#auth-user-chip');
 
   if (profileName) profileName.textContent = user ? user.username.toUpperCase() : 'GUEST';
   if (userName) userName.textContent = user ? user.username.toUpperCase() : 'PLAYER';
+  if (profileRank) {
+    // Preserve the leading rank icon; only swap the label text.
+    const rankText = user ? `RANK #${user.rank ?? 1}` : 'UNRANKED';
+    const iconNode = profileRank.querySelector('svg');
+    profileRank.textContent = '';
+    if (iconNode) profileRank.appendChild(iconNode);
+    profileRank.append(` ${rankText}`);
+  }
+
+  // Sidebar player card only appears once the user has signed in.
+  if (profileCard) profileCard.hidden = !user;
 
   // Guest: only SIGN UP. Signed in: hide SIGN UP / SIGN IN, show avatar chip.
   if (guestBar) guestBar.hidden = !!user;
   if (userChip) {
     userChip.hidden = !user;
     userChip.dataset.authed = user ? '1' : '0';
-    userChip.title = user ? `${user.email} · Click to sign out` : '';
+    userChip.title = user ? user.email : '';
   }
+  // Any open account menu should close on auth change.
+  const menu = document.querySelector<HTMLElement>('#auth-user-menu');
+  if (menu) menu.hidden = true;
+}
+
+/** Turns the avatar chip into a dropdown with "User Profile" and "Log Out". */
+function setupUserMenu(): void {
+  const chip = document.querySelector<HTMLButtonElement>('#auth-user-chip');
+  if (!chip || chip.dataset.menuReady === '1') return;
+  chip.dataset.menuReady = '1';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'auth-user-wrap';
+  chip.parentElement?.insertBefore(wrap, chip);
+  wrap.appendChild(chip);
+
+  const menu = document.createElement('div');
+  menu.className = 'auth-user-menu';
+  menu.id = 'auth-user-menu';
+  menu.hidden = true;
+  menu.innerHTML = `
+    <button type="button" class="auth-user-menu-item" data-act="profile">User Profile</button>
+    <button type="button" class="auth-user-menu-item" data-act="logout">Log Out</button>
+  `;
+  wrap.appendChild(menu);
+
+  chip.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!currentUser) return;
+    menu.hidden = !menu.hidden;
+    chip.classList.toggle('open', !menu.hidden);
+  });
+
+  menu.addEventListener('click', async (e) => {
+    const act = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-act]')?.dataset.act;
+    if (!act) return;
+    menu.hidden = true;
+    chip.classList.remove('open');
+    if (act === 'profile') {
+      document.dispatchEvent(new CustomEvent('link:open-profile'));
+    } else if (act === 'logout') {
+      await logout();
+      showToast('Signed out');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.hidden && !wrap.contains(e.target as Node)) {
+      menu.hidden = true;
+      chip.classList.remove('open');
+    }
+  });
 }
 
 async function pollEmailStatus(id: string): Promise<void> {
@@ -328,11 +399,7 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
     window.location.href = '/api/auth/oauth/outlook';
   });
 
-  document.querySelector('#auth-user-chip')?.addEventListener('click', async () => {
-    if (!currentUser) return;
-    await logout();
-    showToast('Signed out');
-  });
+  setupUserMenu();
 
   document.querySelector('#auth-login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();

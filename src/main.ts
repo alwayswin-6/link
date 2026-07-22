@@ -1,82 +1,23 @@
 import './style.css';
-import { dashboardHTML, gameViewHTML } from './dashboard';
+import { dashboardHTML } from './dashboard';
 import { ChatApp } from './chat';
-import { Game, type HudState } from './game/Game';
-import { initAuth, requireAuth } from './auth';
+import { initAuth } from './auth';
 import { initInteractions } from './interactions';
+import { initRouter, goHome, openRanking, openDownload, openProfile, openFortune, hidePageView } from './pages';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML = dashboardHTML() + gameViewHTML();
+app.innerHTML = dashboardHTML();
 
 const dashboard = document.querySelector<HTMLDivElement>('#dashboard')!;
 const dashMain = document.querySelector<HTMLElement>('.dash-main')!;
-const gameView = document.querySelector<HTMLDivElement>('#game-view')!;
-const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
-const timerEl = document.querySelector<HTMLDivElement>('#timer')!;
-const scoresEl = document.querySelector<HTMLDivElement>('#scores')!;
-const overlay = document.querySelector<HTMLDivElement>('#overlay')!;
-const overlayTitle = document.querySelector<HTMLHeadingElement>('#overlay-title')!;
-const overlayBody = document.querySelector<HTMLParagraphElement>('#overlay-body')!;
-const startBtn = document.querySelector<HTMLButtonElement>('#start-btn')!;
 const playNowBtn = document.querySelector<HTMLButtonElement>('#play-now-btn')!;
 const modeQuick = document.querySelector<HTMLButtonElement>('#mode-quick')!;
 const navPlay = document.querySelector<HTMLAnchorElement>('#nav-play')!;
-const backBtn = document.querySelector<HTMLButtonElement>('#back-to-dash')!;
 const themeToggle = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
 const topbarChat = document.querySelector<HTMLButtonElement>('#topbar-chat')!;
 const chatRoot = document.querySelector<HTMLElement>('#chat-room')!;
 
-let game: Game | null = null;
-let gameBooted = false;
 let chatApp: ChatApp | null = null;
-
-function formatTime(sec: number): string {
-  const s = Math.max(0, Math.ceil(sec));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${r.toString().padStart(2, '0')}`;
-}
-
-function renderHud(state: HudState): void {
-  timerEl.textContent = formatTime(state.timeLeft);
-  scoresEl.innerHTML = state.scores
-    .map(
-      (s) => `
-      <div class="score-chip">
-        <span class="dot" style="background:${s.color};color:${s.color}"></span>
-        <span>${s.name}</span>
-        <strong>${s.energy}</strong>
-      </div>`,
-    )
-    .join('');
-
-  if (state.ended) {
-    overlay.classList.add('visible');
-    overlayTitle.textContent = `${state.winner ?? '???'} WINS`;
-    overlayBody.textContent = 'Most energy when the clock hit zero. Rematch?';
-    startBtn.textContent = 'PLAY AGAIN';
-  }
-}
-
-function showDashboard(): void {
-  gameView.hidden = true;
-  dashboard.hidden = false;
-  if (game) game.reset(false);
-}
-
-function showGame(): void {
-  dashboard.hidden = true;
-  gameView.hidden = false;
-
-  if (!gameBooted) {
-    game = new Game(canvas, renderHud);
-    game.start();
-    gameBooted = true;
-  }
-
-  overlay.classList.remove('visible');
-  game!.reset(true);
-}
 
 function ensureChat(): ChatApp {
   if (!chatApp) chatApp = new ChatApp(chatRoot);
@@ -85,9 +26,9 @@ function ensureChat(): ChatApp {
 
 function showChat(): void {
   ensureChat();
+  hidePageView();
   dashboard.classList.add('is-chat');
   dashMain.classList.add('is-chat');
-  chatRoot.querySelector<HTMLButtonElement>('.chat-filter[data-filter="all"]')?.click();
 }
 
 function showHome(): void {
@@ -101,25 +42,13 @@ function setActiveNav(nav: string): void {
   });
 }
 
-playNowBtn.addEventListener('click', () => {
-  if (!requireAuth()) return;
-  showGame();
-});
-modeQuick.addEventListener('click', () => {
-  if (!requireAuth()) return;
-  showGame();
-});
+// LINK is a downloadable app game — PLAY entry points open the download window.
+playNowBtn.addEventListener('click', () => openDownload());
+modeQuick.addEventListener('click', () => openDownload());
 navPlay.addEventListener('click', (e) => {
   e.preventDefault();
-  if (!requireAuth()) return;
-  showGame();
-});
-
-backBtn.addEventListener('click', showDashboard);
-
-startBtn.addEventListener('click', () => {
-  overlay.classList.remove('visible');
-  game?.reset(true);
+  setActiveNav('play');
+  openDownload();
 });
 
 topbarChat.addEventListener('click', () => {
@@ -127,7 +56,13 @@ topbarChat.addEventListener('click', () => {
   showChat();
 });
 
-// Prevent hash nav from jumping
+// Account chip → "User Profile" opens the profile page.
+document.addEventListener('link:open-profile', () => {
+  setActiveNav('home');
+  openProfile();
+});
+
+// Sidebar navigation — each item changes the visible page
 dashboard.querySelectorAll('.dash-nav-item').forEach((el) => {
   el.addEventListener('click', (e) => {
     const nav = (el as HTMLElement).dataset.nav;
@@ -142,11 +77,19 @@ dashboard.querySelectorAll('.dash-nav-item').forEach((el) => {
       return;
     }
 
-    showHome();
-
     if (nav === 'ranking') {
-      document.querySelector('#section-ranking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      openRanking();
+      return;
     }
+
+    if (nav === 'fortune') {
+      openFortune();
+      return;
+    }
+
+    // HOME (and any other) → return to home page
+    goHome();
+    showHome();
   });
 });
 
@@ -212,12 +155,14 @@ function initHeroCarousel(): void {
 
 initHeroCarousel();
 void initAuth();
-initInteractions({
-  showGame: () => {
-    if (!requireAuth()) return;
-    showGame();
-  },
+
+initRouter({
+  showGame: openDownload,
   showChat,
-  showHome,
+  setActiveNav,
+});
+
+initInteractions({
+  showChat,
   setActiveNav,
 });

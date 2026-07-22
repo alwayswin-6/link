@@ -25,9 +25,12 @@ export function dashboardHTML(): string {
         <a class="dash-nav-item" href="#leaderboard" data-nav="ranking" id="nav-ranking">
           <span class="dash-nav-icon">${iconLeaderboard()}</span> RANKING
         </a>
+        <a class="dash-nav-item" href="#fortune" data-nav="fortune" id="nav-fortune">
+          <span class="dash-nav-icon">${iconFortune()}</span> FIND FORTUNE
+        </a>
       </nav>
 
-      <div class="dash-profile-card">
+      <div class="dash-profile-card" id="dash-profile-card" hidden>
         <div class="dash-profile-top">
           <div class="dash-profile-avatar"><img class="dash-fill" src="/position/user1.png" alt="Player avatar" /></div>
           <div class="dash-profile-id">
@@ -62,13 +65,7 @@ export function dashboardHTML(): string {
         <div class="dash-topbar-right">
           <button type="button" class="dash-icon-btn dash-theme-toggle" id="theme-toggle" aria-label="Toggle light and dark theme" title="Toggle theme">${iconTheme()}</button>
           <button type="button" class="dash-icon-btn has-dot" id="topbar-chat" aria-label="Open chat" title="Chat">${iconChat()}</button>
-          <button type="button" class="dash-icon-btn" aria-label="Messages">${iconMail()}</button>
           <button type="button" class="dash-icon-btn has-dot" aria-label="Notifications">${iconBell()}</button>
-          <div class="dash-currency">
-            <span class="dash-currency-icon">${iconCurrency()}</span>
-            <span class="dash-currency-value">2,450</span>
-            <button type="button" class="dash-currency-plus" aria-label="Add currency">+</button>
-          </div>
           <button type="button" class="dash-user-chip" id="auth-user-chip" hidden>
             <span class="dash-user-avatar"><img class="dash-fill" src="/position/user2.png" alt="Player avatar" /></span>
             <span class="dash-user-meta">
@@ -95,7 +92,9 @@ export function dashboardHTML(): string {
             <div class="dash-hero-logo">LINK</div>
             <p class="dash-hero-sub">DRAW YOUR LINKS. CONTROL THE BATTLE.</p>
             <div class="dash-hero-actions">
-              <button type="button" class="dash-btn-play" id="play-now-btn">PLAY NOW &gt;</button>
+              <button type="button" class="dash-btn-play" id="play-now-btn">
+                <span class="dash-download-icon">${iconDownload()}</span> DOWNLOAD
+              </button>
               <button type="button" class="dash-btn-how">
                 <span class="dash-how-icon">?</span> HOW TO PLAY
               </button>
@@ -122,7 +121,7 @@ export function dashboardHTML(): string {
               title: 'QUICK MATCH',
               desc: 'Jump into fast online battles with random players.',
               chips: [['👥', '2–8 Players'], ['🗺️', 'Random Maps'], ['⚡', 'Avg Queue: 15 sec']],
-              button: 'PLAY NOW',
+              button: 'DOWNLOAD',
               status: 'LIVE',
               buttonId: 'mode-quick',
             })}
@@ -581,14 +580,8 @@ function iconRank() {
 function iconTheme() {
   return `<svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
 }
-function iconMail() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>`;
-}
 function iconBell() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>`;
-}
-function iconCurrency() {
-  return `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><polygon points="12,1.5 20.5,6.5 20.5,17.5 12,22.5 3.5,17.5 3.5,6.5" fill="#a855f7" stroke="#c084fc" stroke-width="1.2"/><polygon points="12,6 16.5,8.6 16.5,14.4 12,17 7.5,14.4 7.5,8.6" fill="#ddd6fe" opacity="0.35"/></svg>`;
 }
 function iconDiscord() {
   return `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 5.5A16 16 0 0 0 15.5 4l-.7 1.3a14 14 0 0 0-5.6 0L8.5 4A16 16 0 0 0 4 5.5C2 8.7 1.4 11.8 1.6 14.9A16 16 0 0 0 6.5 17l1-1.3a10 10 0 0 1-1.5-.7l.4-.3a11 11 0 0 0 11.2 0l.4.3c-.5.3-1 .5-1.5.7l1 1.3a16 16 0 0 0 4.9-2.1c.4-3.5-.6-6.6-2.4-9.4zM8.7 13.2c-.8 0-1.5-.7-1.5-1.6s.7-1.6 1.5-1.6 1.5.7 1.5 1.6-.7 1.6-1.5 1.6zm6.6 0c-.8 0-1.5-.7-1.5-1.6s.7-1.6 1.5-1.6 1.5.7 1.5 1.6-.7 1.6-1.5 1.6z"/></svg>`;
@@ -619,6 +612,12 @@ function iconCoin() {
 }
 function iconArrowRight() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+}
+function iconDownload() {
+  return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>`;
+}
+function iconFortune() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.1 4.6L19 8.2l-3.5 3.4.9 4.9L12 14.9 7.6 16.5l.9-4.9L5 8.2l4.9-.6L12 3z"/></svg>`;
 }
 function iconTrophySimple() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21h8M12 17v4M6 4h12v4a6 6 0 0 1-12 0V4z"/><path d="M6 5H3v2a3 3 0 0 0 3 3M18 5h3v2a3 3 0 0 1-3 3"/></svg>`;
