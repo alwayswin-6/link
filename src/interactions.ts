@@ -151,7 +151,7 @@ function toggleNotifications(bell: HTMLButtonElement): void {
   }
   panel.hidden = false;
   panel.innerHTML = `
-    <h3>NOTIFICATIONS</h3>
+    <h3>Notifications</h3>
     <div class="n-item">Daily missions reset in 12h<span class="n-meta">System · just now</span></div>
     <div class="n-item">Neon Storm event is live<span class="n-meta">Events · 2h ago</span></div>
     <div class="n-item">Friend request from NeonX<span class="n-meta">Social · yesterday</span></div>

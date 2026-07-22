@@ -5,15 +5,15 @@
   transform: translateX(-50%);
   z-index: 12000;
   max-width: min(92vw, 420px);
-  padding: 12px 18px;
+  padding: 12px 16px;
   border-radius: 12px;
-  background: #1a1630;
-  border: 1px solid rgba(155, 123, 255, 0.45);
-  color: #efeaff;
-  font: 600 12px/1.35 Orbitron, sans-serif;
-  letter-spacing: 0.05em;
+  background: #111113;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #FAFAFA;
+  font: 550 13px/1.4 Inter, system-ui, sans-serif;
+  letter-spacing: -0.01em;
   text-align: center;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 }
 
 .link-toast[hidden] {
@@ -27,9 +27,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background:
-    radial-gradient(ellipse at 30% 20%, rgba(109, 74, 255, 0.16), transparent 50%),
-    rgba(4, 6, 12, 0.78);
+  background: rgba(9, 9, 11, 0.72);
   backdrop-filter: blur(8px);
 }
 
@@ -43,10 +41,11 @@
   max-height: min(80vh, 640px);
   overflow: auto;
   padding: 26px 24px 20px;
-  border-radius: 16px;
-  border: 1px solid rgba(155, 123, 255, 0.35);
-  background: linear-gradient(165deg, #121526 0%, #0a0d18 100%);
-  color: #eef1ff;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #111113;
+  color: #FAFAFA;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
   scrollbar-width: none;
 }
 
@@ -63,7 +62,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #8b93b0;
+  color: #71717A;
   font-size: 22px;
   cursor: pointer;
 }
@@ -75,13 +74,13 @@
 
 .link-modal h2 {
   margin: 0 36px 12px 0;
-  font: 700 18px/1.25 Orbitron, sans-serif;
-  letter-spacing: 0.06em;
+  font: 650 18px/1.25 Inter, system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .link-modal-body {
-  font: 500 14px/1.55 "JetBrains Mono", monospace;
-  color: #b8c0d8;
+  font: 450 14px/1.55 Inter, system-ui, sans-serif;
+  color: #A1A1AA;
 }
 
 .link-modal-body p {
@@ -107,15 +106,16 @@
 .link-modal-body .stat-cell {
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid rgba(155, 123, 255, 0.22);
-  background: rgba(8, 10, 18, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0D0D10;
 }
 
 .link-modal-body .stat-cell strong {
   display: block;
   margin-top: 4px;
   color: #fff;
-  font: 700 16px/1 Orbitron, sans-serif;
+  font: 650 16px/1 Inter, system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .link-modal-actions {
@@ -127,24 +127,30 @@
 }
 
 .link-modal-btn {
-  border: 1px solid rgba(155, 123, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   padding: 10px 14px;
   background: transparent;
-  color: #c9c2e8;
-  font: 700 11px/1 Orbitron, sans-serif;
-  letter-spacing: 0.08em;
+  color: #D4D4D8;
+  font: 550 13px/1 Inter, system-ui, sans-serif;
+  letter-spacing: -0.01em;
   cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .link-modal-btn.primary {
   border: 0;
   color: #fff;
-  background: linear-gradient(135deg, #6d4aff, #9b7bff);
+  background: #3B82F6;
+}
+
+.link-modal-btn.primary:hover {
+  background: #2563EB;
 }
 
 .link-modal-btn:hover {
-  filter: brightness(1.08);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .link-notify {
@@ -155,11 +161,11 @@
   width: min(340px, calc(100vw - 32px));
   padding: 14px;
   border-radius: 14px;
-  border: 1px solid rgba(155, 123, 255, 0.4);
-  background: #14122a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #111113;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-  color: #e8e4ff;
-  font: 500 13px/1.45 "JetBrains Mono", monospace;
+  color: #FAFAFA;
+  font: 450 13px/1.45 Inter, system-ui, sans-serif;
 }
 
 .link-notify[hidden] {
@@ -168,8 +174,8 @@
 
 .link-notify h3 {
   margin: 0 0 10px;
-  font: 700 12px/1 Orbitron, sans-serif;
-  letter-spacing: 0.08em;
+  font: 600 13px/1 Inter, system-ui, sans-serif;
+  letter-spacing: -0.01em;
 }
 
 .link-notify .n-item {
@@ -184,21 +190,29 @@
 .link-notify .n-meta {
   display: block;
   margin-top: 4px;
-  color: #8b93b0;
+  color: #71717A;
   font-size: 11px;
 }
 
 .msn-track.is-tracking {
-  background: linear-gradient(135deg, #6d4aff, #9b7bff) !important;
+  background: #3B82F6 !important;
   color: #fff !important;
   border-color: transparent !important;
 }
 
 .dash.theme-light .link-modal {
-  background: linear-gradient(165deg, #f7f5ff 0%, #ebe6ff 100%);
-  color: #1c1638;
+  background: #FFFFFF;
+  color: #18181B;
+  border-color: rgba(24, 24, 27, 0.12);
 }
 
 .dash.theme-light .link-modal-body {
-  color: #5c5678;
+  color: #52525B;
+}
+
+.dash.theme-light .link-toast,
+.dash.theme-light .link-notify {
+  background: #FFFFFF;
+  color: #18181B;
+  border-color: rgba(24, 24, 27, 0.12);
 }

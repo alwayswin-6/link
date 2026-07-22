@@ -3,7 +3,19 @@ import { dashboardHTML } from './dashboard';
 import { ChatApp } from './chat';
 import { initAuth } from './auth';
 import { initInteractions } from './interactions';
-import { initRouter, goHome, openRanking, openDownload, openProfile, openFortune, hidePageView } from './pages';
+import {
+  initRouter,
+  goHome,
+  openRanking,
+  openDownload,
+  openProfile,
+  openFortune,
+  openMissions,
+  openCommunity,
+  openHowToPlay,
+  hidePageView,
+} from './pages';
+import { showToast } from './ui';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = dashboardHTML();
@@ -37,19 +49,75 @@ function showHome(): void {
 }
 
 function setActiveNav(nav: string): void {
-  dashboard.querySelectorAll('.dash-nav-item').forEach((n) => {
+  dashboard.querySelectorAll('.dash-nav-item, .dash-mobile-item').forEach((n) => {
     n.classList.toggle('active', (n as HTMLElement).dataset.nav === nav);
   });
+}
+
+function handleNav(nav: string | undefined, e?: Event): void {
+  if (!nav) return;
+  e?.preventDefault();
+
+  if (nav === 'play') {
+    setActiveNav('play');
+    openDownload();
+    return;
+  }
+
+  if (nav === 'exit') return;
+
+  setActiveNav(nav);
+
+  if (nav === 'chat') {
+    showChat();
+    return;
+  }
+
+  if (nav === 'ranking') {
+    openRanking();
+    return;
+  }
+
+  if (nav === 'missions') {
+    openMissions();
+    return;
+  }
+
+  if (nav === 'community') {
+    openCommunity();
+    return;
+  }
+
+  if (nav === 'profile') {
+    openProfile();
+    return;
+  }
+
+  if (nav === 'help') {
+    openHowToPlay();
+    return;
+  }
+
+  if (nav === 'settings') {
+    showHome();
+    goHome();
+    showToast('Settings coming soon');
+    return;
+  }
+
+  if (nav === 'fortune') {
+    openFortune();
+    return;
+  }
+
+  goHome();
+  showHome();
 }
 
 // LINK is a downloadable app game — PLAY entry points open the download window.
 playNowBtn.addEventListener('click', () => openDownload());
 modeQuick.addEventListener('click', () => openDownload());
-navPlay.addEventListener('click', (e) => {
-  e.preventDefault();
-  setActiveNav('play');
-  openDownload();
-});
+navPlay.addEventListener('click', (e) => handleNav('play', e));
 
 topbarChat.addEventListener('click', () => {
   setActiveNav('chat');
@@ -58,38 +126,15 @@ topbarChat.addEventListener('click', () => {
 
 // Account chip → "User Profile" opens the profile page.
 document.addEventListener('link:open-profile', () => {
-  setActiveNav('home');
+  setActiveNav('profile');
   openProfile();
 });
 
-// Sidebar navigation — each item changes the visible page
-dashboard.querySelectorAll('.dash-nav-item').forEach((el) => {
+// Sidebar + mobile navigation
+dashboard.querySelectorAll('.dash-nav-item, .dash-mobile-item').forEach((el) => {
   el.addEventListener('click', (e) => {
-    const nav = (el as HTMLElement).dataset.nav;
-    if (nav === 'play') return; // handled above
-    e.preventDefault();
-    if (nav === 'exit') return;
-
-    setActiveNav(nav ?? 'home');
-
-    if (nav === 'chat') {
-      showChat();
-      return;
-    }
-
-    if (nav === 'ranking') {
-      openRanking();
-      return;
-    }
-
-    if (nav === 'fortune') {
-      openFortune();
-      return;
-    }
-
-    // HOME (and any other) → return to home page
-    goHome();
-    showHome();
+    if (el.id === 'nav-play') return; // dedicated handler above
+    handleNav((el as HTMLElement).dataset.nav, e);
   });
 });
 
@@ -119,7 +164,6 @@ function initHeroCarousel(): void {
     slides.forEach((s, i) => {
       const on = i === index;
       s.classList.toggle('active', on);
-      // Lazy-decode non-active slides to ease GPU memory pressure
       if (on) s.loading = 'eager';
       else if ('loading' in s) s.loading = 'lazy';
     });
