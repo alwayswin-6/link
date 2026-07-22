@@ -1,6 +1,6 @@
 /**
- * Ensures .env exists with SMTP placeholders merged from .env.example.
- * Does not overwrite existing SMTP_* values.
+ * Ensures .env exists for local development only.
+ * On Render.com this is a no-op — env vars come from the Dashboard.
  */
 import { existsSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -8,6 +8,15 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const envPath = resolve(root, '.env');
 const examplePath = resolve(root, '.env.example');
+
+const onRender = Boolean(
+  process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID,
+);
+
+if (onRender) {
+  console.log('[env] Render detected — skipping local .env creation');
+  process.exit(0);
+}
 
 if (!existsSync(envPath) && existsSync(examplePath)) {
   copyFileSync(examplePath, envPath);
@@ -30,7 +39,7 @@ const block = `
 APP_URL=http://127.0.0.1:5173
 API_PORT=3001
 SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
+SMTP_PORT=465
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM_NAME=link

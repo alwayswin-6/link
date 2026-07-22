@@ -71,6 +71,12 @@ function inboxHint(email) {
 }
 
 async function deliverOtp(mailer, pending) {
+  if (!mailer) {
+    const msg = 'Email delivery is not configured (SMTP_USER / SMTP_PASS missing on the server).';
+    console.error('[mail]', msg);
+    await setPendingEmailStatus(pending.id, 'failed', msg);
+    return false;
+  }
   try {
     await sendOtpEmail(mailer, {
       to: pending.email,
@@ -95,6 +101,13 @@ export function createAuthRouter(mailer) {
   /** Step 1: name + email + password → create pending, send OTP, then client shows verify page */
   router.post('/register/start', async (req, res) => {
     try {
+      if (!mailer) {
+        return res.status(503).json({
+          ok: false,
+          error:
+            'Registration email is not configured. On Render, set SMTP_USER and SMTP_PASS in the Environment tab, then redeploy.',
+        });
+      }
       const settings = await getSettings();
       if (settings.registration === false) {
         return res.status(403).json({ ok: false, error: 'Registration is currently closed.' });

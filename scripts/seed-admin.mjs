@@ -1,54 +1,72 @@
 /**
  * Seeds the initial administrator account.
  *
- * Reads ADMIN_EMAIL / ADMIN_PASSWORD from environment or .env
- * and writes a PBKDF2 password hash to src/admin/generated/admin-seed.json.
+ * Credential precedence:
+ *   1. process.env (Render Dashboard / shell)
+ *   2. local .env (development only)
+ *   3. .env.example (build-time fallback)
+ *
+ * On Render there is no .env file — set ADMIN_EMAIL and ADMIN_PASSWORD
+ * in the service Environment tab (see render.yaml sync:false keys).
  *
  * Plaintext credentials are NEVER written into application source.
  *
  * Usage: npm run seed:admin
  */
 import { randomBytes, pbkdf2Sync } from 'node:crypto';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { onRender, parseEnvFile } from '../server/load-env.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const outDir = join(root, 'src', 'admin', 'generated');
 const outFile = join(outDir, 'admin-seed.json');
 
-function loadEnvFile() {
-  const envPath = join(root, '.env');
-  const examplePath = join(root, '.env.example');
-  const path = existsSync(envPath) ? envPath : examplePath;
-  if (!existsSync(path)) return {};
-  const map = {};
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const i = trimmed.indexOf('=');
-    if (i === -1) continue;
-    const key = trimmed.slice(0, i).trim();
-    let val = trimmed.slice(i + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    map[key] = val;
+function resolveAdminCredentials() {
+  const fromProcess = {
+    email: (process.env.ADMIN_EMAIL || '').trim().toLowerCase(),
+    password: process.env.ADMIN_PASSWORD || '',
+  };
+  if (fromProcess.email && fromProcess.password) {
+    return { ...fromProcess, source: 'process.env' };
   }
-  return map;
+
+  // Local .env (never present on Render — gitignored)
+  const envFile = join(root, '.env');
+  if (!onRender && existsSync(envFile)) {
+    const fileEnv = parseEnvFile(envFile);
+    const email = (fromProcess.email || fileEnv.ADMIN_EMAIL || '').trim().toLowerCase();
+    const password = fromProcess.password || fileEnv.ADMIN_PASSWORD || '';
+    if (email && password) return { email, password, source: '.env' };
+  }
+
+  // Build fallback so `npm run build` still works with example defaults
+  const example = parseEnvFile(join(root, '.env.example'));
+  const email = (fromProcess.email || example.ADMIN_EMAIL || '').trim().toLowerCase();
+  const password = fromProcess.password || example.ADMIN_PASSWORD || '';
+  if (email && password) {
+    return {
+      email,
+      password,
+      source: onRender ? '.env.example (set ADMIN_* in Render Environment to override)' : '.env.example',
+    };
+  }
+
+  return { email: '', password: '', source: 'none' };
 }
 
-const fileEnv = loadEnvFile();
-const email = (process.env.ADMIN_EMAIL || fileEnv.ADMIN_EMAIL || '').trim().toLowerCase();
-const password = process.env.ADMIN_PASSWORD || fileEnv.ADMIN_PASSWORD || '';
+const { email, password, source } = resolveAdminCredentials();
 
 if (!email || !password) {
   console.error('[seed-admin] ADMIN_EMAIL and ADMIN_PASSWORD are required.');
-  console.error('Set them in .env (see .env.example) or pass as environment variables.');
+  if (onRender) {
+    console.error('[seed-admin] On Render: Dashboard → Environment → set ADMIN_EMAIL and ADMIN_PASSWORD');
+    console.error('[seed-admin] (render.yaml marks these sync:false — you must enter values manually)');
+  } else {
+    console.error('[seed-admin] Set them in .env (see .env.example) or export them in your shell.');
+  }
   process.exit(1);
 }
 
@@ -78,5 +96,6 @@ writeFileSync(outFile, `${JSON.stringify(seed, null, 2)}\n`, 'utf8');
 
 console.log('[seed-admin] Administrator seed written to src/admin/generated/admin-seed.json');
 console.log(`[seed-admin] Email: ${email}`);
+console.log(`[seed-admin] Credentials source: ${source}`);
 console.log('[seed-admin] Password hash stored (plaintext password was not written to disk).');
 console.log('[seed-admin] Private admin entry: /admin/');

@@ -1,11 +1,11 @@
-import 'dotenv/config';
+import { logEnvStatus, onRender, env } from './load-env.mjs';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createMailer } from './mail.mjs';
+import { createMailer, isSmtpConfigured } from './mail.mjs';
 import { createAuthRouter } from './auth-routes.mjs';
 import { createAdminRouter } from './admin.mjs';
 import { attachChat } from './chat.mjs';
@@ -18,16 +18,21 @@ const DIST = join(ROOT, 'dist');
 // Render injects PORT and requires binding 0.0.0.0 (localhost is invisible to the proxy).
 // Never honor HOST=127.0.0.1 on Render even if it was copied into the Environment tab.
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3001);
-const onRender = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_URL);
-const HOST = onRender ? '0.0.0.0' : process.env.HOST || '0.0.0.0';
+const HOST = onRender ? '0.0.0.0' : env('HOST', '0.0.0.0');
 
-let mailer;
-try {
-  mailer = createMailer();
-} catch (err) {
-  console.error('[smtp] configuration error:', err.message);
-  console.error('[smtp] Add SMTP_USER / SMTP_PASS in the Render Environment tab.');
-  process.exit(1);
+const envStatus = logEnvStatus();
+
+let mailer = null;
+if (isSmtpConfigured()) {
+  try {
+    mailer = createMailer();
+  } catch (err) {
+    console.error('[smtp] configuration error:', err.message);
+    mailer = null;
+  }
+} else {
+  console.error('[smtp] Mailer disabled until SMTP_USER / SMTP_PASS are set.');
+  console.error('[smtp] User registration (OTP email) will fail until then.');
 }
 
 const app = express();
@@ -45,6 +50,9 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
       // Same-origin browser requests from the Render URL often omit mismatches; allow configured hosts.
       if (process.env.APP_URL && origin.startsWith(process.env.APP_URL)) return cb(null, true);
+      if (process.env.RENDER_EXTERNAL_URL && origin.startsWith(process.env.RENDER_EXTERNAL_URL)) {
+        return cb(null, true);
+      }
       return cb(null, false);
     },
     credentials: true,
@@ -53,7 +61,17 @@ app.use(
 app.use(express.json({ limit: '32kb' }));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'link-api', host: HOST, port: PORT });
+  res.json({
+    ok: true,
+    service: 'link-api',
+    host: HOST,
+    port: PORT,
+    render: onRender,
+    smtpConfigured: Boolean(mailer),
+    database: Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL),
+    appUrl: process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || null,
+    missingEnv: envStatus.missingMail,
+  });
 });
 
 app.use('/api/auth', createAuthRouter(mailer));
