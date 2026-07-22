@@ -941,16 +941,72 @@ button.page-tr:hover {
   }
 }
 
-/* Light theme */
-.dash.theme-light .page-card,
-.dash.theme-light .page-stat,
-.dash.theme-light .page-tr {
-  background: rgba(255, 255, 255, 0.7);
+/* Light theme — premium SaaS palette */
+.dash.theme-light .page-back {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  color: #334155;
+}
+
+.dash.theme-light .page-back:hover {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+  color: #0F172A;
 }
 
 .dash.theme-light .page-title,
+.dash.theme-light .page-h3,
 .dash.theme-light .page-stat strong,
 .dash.theme-light .lb-player,
 .dash.theme-light .mission-info h3 {
-  color: #1c1638;
+  color: #0F172A;
+}
+
+.dash.theme-light .page-sub,
+.dash.theme-light .page-text,
+.dash.theme-light .page-list {
+  color: #475569;
+}
+
+.dash.theme-light .page-card,
+.dash.theme-light .page-stat,
+.dash.theme-light .page-tr {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  color: #475569;
+}
+
+.dash.theme-light .page-btn {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  color: #334155;
+}
+
+.dash.theme-light .page-btn:hover {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+  color: #0F172A;
+  filter: none;
+}
+
+.dash.theme-light .page-btn.primary,
+.dash.theme-light .page-btn.is-tracking {
+  background: #2563EB;
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.dash.theme-light .page-btn.primary:hover,
+.dash.theme-light .page-btn.is-tracking:hover {
+  background: #1D4ED8;
+  filter: none;
+}
+
+.dash.theme-light .page-list kbd,
+.dash.theme-light .page-avatar {
+  background: #F8F9FB;
+  border-color: #E2E8F0;
+  color: #334155;
 }

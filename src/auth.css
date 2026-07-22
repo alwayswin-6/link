@@ -341,21 +341,89 @@
 }
 
 .dash.theme-light .auth-modal {
-  background: linear-gradient(165deg, #f7f5ff 0%, #ebe6ff 100%);
-  border-color: rgba(59, 130, 246, 0.25);
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
 }
 
 .dash.theme-light .auth-brand,
 .dash.theme-light .auth-modal h2 {
-  color: #1c1638;
+  color: #0F172A;
 }
 
 .dash.theme-light .auth-sub,
-.dash.theme-light .auth-field span {
-  color: #5c5678;
+.dash.theme-light .auth-field span,
+.dash.theme-light .auth-divider {
+  color: #64748B;
+}
+
+.dash.theme-light .auth-divider::before,
+.dash.theme-light .auth-divider::after {
+  background: #E2E8F0;
 }
 
 .dash.theme-light .auth-field input {
-  background: #fff;
-  color: #1c1638;
+  background: #F8F9FB;
+  border-color: #E2E8F0;
+  color: #0F172A;
+}
+
+.dash.theme-light .auth-field input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px #EFF6FF;
+}
+
+.dash.theme-light .auth-provider {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  color: #334155;
+}
+
+.dash.theme-light .auth-provider:hover,
+.dash.theme-light .auth-provider.active {
+  background: #EFF6FF;
+  border-color: rgba(37, 99, 235, 0.28);
+  color: #0F172A;
+}
+
+.dash.theme-light .auth-top-btn {
+  background: #2563EB;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.dash.theme-light .auth-top-btn:hover {
+  background: #1D4ED8;
+  filter: none;
+}
+
+.dash.theme-light .auth-top-btn.ghost {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  color: #334155;
+  box-shadow: none;
+}
+
+.dash.theme-light .auth-user-menu {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.dash.theme-light .auth-user-menu-item {
+  color: #334155;
+}
+
+.dash.theme-light .auth-user-menu-item:hover {
+  background: #F8FAFC;
+  color: #0F172A;
+}
+
+.dash.theme-light .auth-user-menu-item[data-act='logout'] {
+  color: #DC2626;
+}
+
+.dash.theme-light .auth-user-menu-item[data-act='logout']:hover {
+  background: #FEF2F2;
+  color: #DC2626;
 }

@@ -202,17 +202,68 @@
 
 .dash.theme-light .link-modal {
   background: #FFFFFF;
-  color: #18181B;
-  border-color: rgba(24, 24, 27, 0.12);
+  color: #0F172A;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.1);
 }
 
 .dash.theme-light .link-modal-body {
-  color: #52525B;
+  color: #475569;
+}
+
+.dash.theme-light .link-modal-body .stat-cell {
+  background: #F8F9FB;
+  border-color: rgba(15, 23, 42, 0.06);
+}
+
+.dash.theme-light .link-modal-body .stat-cell strong {
+  color: #0F172A;
+}
+
+.dash.theme-light .link-modal-btn {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  color: #334155;
+}
+
+.dash.theme-light .link-modal-btn:hover {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+  color: #0F172A;
+}
+
+.dash.theme-light .link-modal-btn.primary {
+  background: #2563EB;
+  border-color: transparent;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.dash.theme-light .link-modal-btn.primary:hover {
+  background: #1D4ED8;
+}
+
+.dash.theme-light .link-modal-close {
+  color: #94A3B8;
+}
+
+.dash.theme-light .link-modal-close:hover {
+  color: #334155;
+  background: #F8FAFC;
 }
 
 .dash.theme-light .link-toast,
 .dash.theme-light .link-notify {
   background: #FFFFFF;
-  color: #18181B;
-  border-color: rgba(24, 24, 27, 0.12);
+  color: #0F172A;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.dash.theme-light .link-notify .n-meta {
+  color: #94A3B8;
+}
+
+.dash.theme-light .link-modal-overlay {
+  background: rgba(15, 23, 42, 0.28);
 }

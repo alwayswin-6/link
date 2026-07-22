@@ -1127,3 +1127,62 @@
     max-width: 88%;
   }
 }
+
+/* Light theme — premium SaaS chat surfaces */
+.dash.theme-light .chat-room {
+  --chat-panel: #FFFFFF;
+  --chat-glass: #F8F9FB;
+  --chat-border: rgba(15, 23, 42, 0.08);
+  --chat-glow: transparent;
+  --chat-mine: #2563EB;
+  --chat-theirs: #F1F5F9;
+  background: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  color: #0F172A;
+}
+
+.dash.theme-light .chat-join-gate {
+  background: rgba(248, 249, 251, 0.88);
+}
+
+.dash.theme-light .chat-join-card {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.dash.theme-light .chat-join-logo,
+.dash.theme-light .chat-join-card h3 {
+  color: #0F172A;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+}
+
+.dash.theme-light .chat-list-panel,
+.dash.theme-light .chat-main-panel,
+.dash.theme-light .chat-info-panel {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.dash.theme-light .chat-room input,
+.dash.theme-light .chat-room textarea {
+  background: #F8F9FB;
+  border-color: #E2E8F0;
+  color: #0F172A;
+}
+
+.dash.theme-light .chat-room button {
+  color: #64748B;
+}
+
+.dash.theme-light .chat-bubble.mine {
+  background: #2563EB;
+  color: #FFFFFF;
+}
+
+.dash.theme-light .chat-bubble.theirs {
+  background: #F1F5F9;
+  color: #0F172A;
+}
