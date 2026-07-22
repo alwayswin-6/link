@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws';
 import { randomBytes } from 'node:crypto';
-import { getSessionUser } from './store.mjs';
+import { getSessionUser, touchUserActivity } from './store.mjs';
+import { setUserOnline, setUserOffline, getOnlineUsers } from './presence.mjs';
 
 const GLOBAL = 'global';
 const HISTORY_LIMIT = 100;
@@ -25,26 +26,23 @@ export function attachChat(server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   /** userId -> { user, sockets:Set<WebSocket> } */
-  const online = new Map();
+  const socketsByUser = new Map();
   /** roomKey -> ChatMessage[] */
   const history = new Map([[GLOBAL, []]]);
-
-  const onlineUsers = () =>
-    [...online.values()].map((o) => ({ id: o.user.id, username: o.user.username }));
 
   const send = (sock, obj) => {
     if (sock.readyState === sock.OPEN) sock.send(JSON.stringify(obj));
   };
 
   const sendToUser = (userId, obj) => {
-    const o = online.get(userId);
+    const o = socketsByUser.get(userId);
     if (!o) return;
     for (const s of o.sockets) send(s, obj);
   };
 
   const broadcast = (obj, exceptUserId = null) => {
-    for (const o of online.values()) {
-      if (exceptUserId && o.user.id === exceptUserId) continue;
+    for (const [userId, o] of socketsByUser.entries()) {
+      if (exceptUserId && userId === exceptUserId) continue;
       for (const s of o.sockets) send(s, obj);
     }
   };
@@ -79,22 +77,29 @@ export function attachChat(server) {
       sock.close();
       return;
     }
+    if (user.status === 'banned' || user.status === 'suspended') {
+      send(sock, { type: 'error', error: 'account_restricted' });
+      sock.close();
+      return;
+    }
     if (sock.readyState !== sock.OPEN) return;
 
-    let entry = online.get(user.id);
+    let entry = socketsByUser.get(user.id);
     if (!entry) {
       entry = { user: { id: user.id, username: user.username }, sockets: new Set() };
-      online.set(user.id, entry);
+      socketsByUser.set(user.id, entry);
     }
     entry.sockets.add(sock);
+    setUserOnline({ id: user.id, username: user.username });
+    void touchUserActivity(user.id);
 
     send(sock, {
       type: 'welcome',
       me: { id: user.id, username: user.username },
-      users: onlineUsers(),
+      users: getOnlineUsers(),
       history: history.get(GLOBAL).slice(-HISTORY_LIMIT),
     });
-    broadcast({ type: 'presence', users: onlineUsers() });
+    broadcast({ type: 'presence', users: getOnlineUsers() });
 
     sock.on('message', (raw) => {
       let msg;
@@ -140,11 +145,14 @@ export function attachChat(server) {
     });
 
     sock.on('close', () => {
-      const e = online.get(user.id);
+      const e = socketsByUser.get(user.id);
       if (!e) return;
       e.sockets.delete(sock);
-      if (e.sockets.size === 0) online.delete(user.id);
-      broadcast({ type: 'presence', users: onlineUsers() });
+      if (e.sockets.size === 0) {
+        socketsByUser.delete(user.id);
+        setUserOffline(user.id);
+      }
+      broadcast({ type: 'presence', users: getOnlineUsers() });
     });
 
     sock.on('error', () => {

@@ -157,6 +157,41 @@ function modalHtml(): string {
             <span>Password</span>
             <input type="password" name="password" id="auth-signup-password" required minlength="8" autocomplete="new-password" />
           </label>
+          <label class="auth-field">
+            <span>Country</span>
+            <select name="country" id="auth-signup-country" required>
+              <option value="">Select country</option>
+              <option value="United States">United States</option>
+              <option value="United Kingdom">United Kingdom</option>
+              <option value="Canada">Canada</option>
+              <option value="Germany">Germany</option>
+              <option value="France">France</option>
+              <option value="Spain">Spain</option>
+              <option value="Italy">Italy</option>
+              <option value="Brazil">Brazil</option>
+              <option value="Mexico">Mexico</option>
+              <option value="Japan">Japan</option>
+              <option value="South Korea">South Korea</option>
+              <option value="China">China</option>
+              <option value="India">India</option>
+              <option value="Australia">Australia</option>
+              <option value="Russia">Russia</option>
+              <option value="Turkey">Turkey</option>
+              <option value="Poland">Poland</option>
+              <option value="Netherlands">Netherlands</option>
+              <option value="Sweden">Sweden</option>
+              <option value="Philippines">Philippines</option>
+              <option value="Indonesia">Indonesia</option>
+              <option value="Vietnam">Vietnam</option>
+              <option value="Thailand">Thailand</option>
+              <option value="Singapore">Singapore</option>
+              <option value="United Arab Emirates">United Arab Emirates</option>
+              <option value="Saudi Arabia">Saudi Arabia</option>
+              <option value="South Africa">South Africa</option>
+              <option value="Argentina">Argentina</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
           <div class="auth-error" id="auth-signup-error" hidden></div>
           <button type="submit" class="auth-submit" id="auth-signup-submit">SIGN UP</button>
         </form>
@@ -430,7 +465,12 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
     const name = document.querySelector<HTMLInputElement>('#auth-signup-name')!.value.trim();
     const email = document.querySelector<HTMLInputElement>('#auth-signup-email')!.value.trim();
     const password = document.querySelector<HTMLInputElement>('#auth-signup-password')!.value;
+    const country = document.querySelector<HTMLSelectElement>('#auth-signup-country')!.value.trim();
     const btn = document.querySelector<HTMLButtonElement>('#auth-signup-submit')!;
+    if (!country) {
+      setMsg('auth-signup-error', 'Select your country.', 'error');
+      return;
+    }
     btn.disabled = true;
     btn.textContent = 'SENDING CODE…';
     setMsg('auth-signup-error', '', 'error');
@@ -443,7 +483,7 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
         inbox?: { url: string | null; provider: string };
       }>('/register/start', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, country }),
       });
 
       pendingId = data.pendingId;

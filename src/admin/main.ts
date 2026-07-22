@@ -11,16 +11,24 @@ import {
   type AdminSession,
   type Permission,
 } from './auth';
+import { EMPTY_STATS, type ManagedUser } from './data';
 import {
-  AUDIT,
-  DAU_SERIES,
-  GROWTH,
-  REPORTS,
-  STATS,
-  USERS,
-  type ManagedUser,
-  type UserStatus,
-} from './data';
+  fetchAnalytics,
+  fetchAnnouncements,
+  fetchAudit,
+  fetchReports,
+  fetchSettings,
+  fetchStats,
+  fetchUsers,
+  patchReport,
+  patchSettings,
+  patchUser,
+  publishAnnouncement,
+  type AdminStats,
+  type AnnouncementItem,
+  type AuditEntry,
+  type ReportItem,
+} from './api';
 import {
   bindFilesPage,
   renderFilesPage,
@@ -43,12 +51,25 @@ const root = document.querySelector<HTMLDivElement>('#admin-root')!;
 let session: AdminSession | null = getSession();
 let page: Page = 'overview';
 let userQuery = '';
-let userFilter: 'all' | UserStatus | 'moderator' | 'recent' = 'all';
-let selectedUserId: string | null = USERS[0]?.id ?? null;
-let auditLog = [...AUDIT];
-let reports = [...REPORTS];
-let users = USERS.map((u) => ({ ...u }));
+let userFilter: 'all' | 'online' | 'offline' | 'banned' | 'muted' | 'suspended' | 'recent' = 'all';
+let selectedUserId: string | null = null;
 let toastTimer = 0;
+let loading = false;
+
+let stats: AdminStats = { ...EMPTY_STATS };
+let users: ManagedUser[] = [];
+let auditLog: AuditEntry[] = [];
+let reports: ReportItem[] = [];
+let announcements: AnnouncementItem[] = [];
+let growth: number[] = [];
+let dauSeries: number[] = [];
+let settings: Record<string, boolean> = {
+  maintenance: false,
+  registration: true,
+  events: true,
+  shop: true,
+  notifications: true,
+};
 
 const PAGE_PERMS: Partial<Record<Page, Permission>> = {
   users: 'manage_users',
@@ -85,6 +106,52 @@ function escapeHtml(s: string): string {
 
 function fmt(n: number): string {
   return n.toLocaleString('en-US');
+}
+
+async function loadPageData(): Promise<void> {
+  loading = true;
+  try {
+    if (page === 'overview') {
+      const [s, a] = await Promise.all([fetchStats(), fetchAudit()]);
+      stats = s.stats;
+      auditLog = a.entries;
+    } else if (page === 'users') {
+      const data = await fetchUsers(userQuery, userFilter);
+      users = data.users;
+      if (!selectedUserId || !users.some((u) => u.id === selectedUserId)) {
+        selectedUserId = users[0]?.id ?? null;
+      }
+    } else if (page === 'reports') {
+      const data = await fetchReports();
+      reports = data.reports;
+    } else if (page === 'announcements') {
+      const data = await fetchAnnouncements();
+      announcements = data.announcements;
+    } else if (page === 'analytics') {
+      const data = await fetchAnalytics();
+      growth = data.analytics.growth || [];
+      dauSeries = data.analytics.dauSeries || [];
+      stats = data.analytics;
+    } else if (page === 'audit') {
+      const data = await fetchAudit();
+      auditLog = data.entries;
+    } else if (page === 'settings') {
+      const data = await fetchSettings();
+      settings = data.settings;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to load data';
+    if (msg === 'unauthorized') {
+      toast('Admin API session expired — sign in again');
+      void serverAdminLogout();
+      clearSession();
+      session = null;
+    } else {
+      toast(msg);
+    }
+  } finally {
+    loading = false;
+  }
 }
 
 function renderLogin(): void {
@@ -130,12 +197,17 @@ function renderLogin(): void {
         btn.textContent = 'AUTHENTICATE';
         return;
       }
-      // Also authenticate with the API so the file manager can upload (best-effort).
-      await serverAdminLogin(email, password);
+      const apiOk = await serverAdminLogin(email, password);
+      if (!apiOk) {
+        err.textContent = 'Server authentication failed. Ensure the API is running.';
+        btn.disabled = false;
+        btn.textContent = 'AUTHENTICATE';
+        return;
+      }
       session = createSession();
       page = 'overview';
       toast(`Welcome, ${session.displayName}`);
-      render();
+      await render();
     } catch {
       err.textContent = 'Authentication failed. Seed may be missing — run npm run seed:admin.';
       btn.disabled = false;
@@ -155,42 +227,15 @@ function navBtn(id: Page, label: string): string {
   return `<button type="button" class="admin-nav-btn${page === id ? ' active' : ''}" data-page="${id}">${label}</button>`;
 }
 
-function filteredUsers(): ManagedUser[] {
-  const q = userQuery.trim().toLowerCase();
-  return users.filter((u) => {
-    if (userFilter === 'recent') {
-      if (u.registered < '2026-07-01') return false;
-    } else if (userFilter === 'moderator') {
-      if (u.role !== 'moderator') return false;
-    } else if (userFilter !== 'all' && u.status !== userFilter) {
-      return false;
-    }
-    if (!q) return true;
-    return `${u.id} ${u.username} ${u.displayName} ${u.email} ${u.clan} ${u.role} ${u.status}`
-      .toLowerCase()
-      .includes(q);
-  });
-}
-
 function selectedUser(): ManagedUser | null {
-  return users.find((u) => u.id === selectedUserId) ?? filteredUsers()[0] ?? null;
-}
-
-function logAction(action: string, target: string, reason: string): void {
-  if (!session) return;
-  auditLog.unshift({
-    id: `A-${Date.now()}`,
-    admin: session.email,
-    action,
-    target,
-    reason,
-    at: new Date().toISOString().slice(0, 16).replace('T', ' '),
-    ip: 'session',
-  });
+  return users.find((u) => u.id === selectedUserId) ?? users[0] ?? null;
 }
 
 function chart(values: number[]): string {
   const max = Math.max(...values, 1);
+  if (!values.length) {
+    return `<div class="admin-chart"><i style="height:12%"></i></div>`;
+  }
   return `<div class="admin-chart">${values
     .map((v) => `<i style="height:${Math.max(8, (v / max) * 100)}%"></i>`)
     .join('')}</div>`;
@@ -198,18 +243,16 @@ function chart(values: number[]): string {
 
 function renderOverview(): string {
   const cards = [
-    ['Total Users', STATS.totalUsers, 'Platform accounts'],
-    ['Online Users', STATS.onlineUsers, 'Live presence'],
-    ['New Registrations', STATS.newRegistrations, 'Last 24h'],
-    ['Daily Active Users', STATS.dau, 'Trailing day'],
-    ['Banned Users', STATS.bannedUsers, 'Active sanctions'],
-    ['Moderators', STATS.moderators, 'Staff with chat tools'],
-    ['Total Matches', STATS.totalMatches, 'Lifetime-to-date'],
-    ['Transactions', STATS.totalTransactions, 'Shop + currency'],
-    ['Server Status', STATS.serverStatus, 'Cluster health'],
-    ['Open Reports', STATS.reports, 'Needs review'],
-    ['Warnings', STATS.warnings, 'Issued this month'],
-    ['Support Tickets', STATS.supportTickets, 'Queue depth'],
+    ['Total Users', stats.totalUsers, 'Registered accounts'],
+    ['Online Users', stats.onlineUsers, 'Live + recently active'],
+    ['New Registrations', stats.newRegistrations, 'Last 24h'],
+    ['Daily Active Users', stats.dau, 'Trailing day'],
+    ['Banned Users', stats.bannedUsers, 'Active sanctions'],
+    ['Open Reports', stats.openReports, 'Needs review'],
+    ['Announcements', stats.announcements, 'Published'],
+    ['Audit Entries', stats.auditEntries, 'Administrative history'],
+    ['Server Status', stats.serverStatus, 'API health'],
+    ['Live Connections', stats.liveConnections ?? 0, 'Chat WebSocket'],
   ] as const;
 
   return `
@@ -227,22 +270,29 @@ function renderOverview(): string {
     </div>
     <div class="admin-grid-2">
       <section class="admin-panel">
-        <h3>User Growth</h3>
-        ${chart(GROWTH)}
+        <h3>Platform Status</h3>
+        <p style="color:#9b93b5;font-weight:600;line-height:1.6">
+          Dashboard reflects live database records and chat presence.
+          File Manager uploads are available to authenticated administrators.
+        </p>
       </section>
       <section class="admin-panel">
         <h3>Recent Administrative Activity</h3>
         <ul class="admin-activity">
-          ${auditLog
-            .slice(0, 6)
-            .map(
-              (a) => `
+          ${
+            auditLog.length
+              ? auditLog
+                  .slice(0, 8)
+                  .map(
+                    (a) => `
             <li>
               <span><strong>${escapeHtml(a.action)}</strong> → ${escapeHtml(a.target)}<br/><small style="color:#9b93b5">${escapeHtml(a.reason)}</small></span>
               <span class="meta">${escapeHtml(a.at)}</span>
             </li>`,
-            )
-            .join('')}
+                  )
+                  .join('')
+              : `<li><span>No audit events yet</span><span class="meta">—</span></li>`
+          }
         </ul>
       </section>
     </div>
@@ -250,14 +300,13 @@ function renderOverview(): string {
 }
 
 function renderUsers(): string {
-  const list = filteredUsers();
   const u = selectedUser();
   return `
     <div class="admin-toolbar">
       <div class="admin-search">
-        <input id="user-search" type="search" placeholder="Search ID, username, email, clan…" value="${escapeHtml(userQuery)}" />
+        <input id="user-search" type="search" placeholder="Search ID, username, email, country, password…" value="${escapeHtml(userQuery)}" />
       </div>
-      ${(['all', 'online', 'offline', 'banned', 'muted', 'premium', 'moderator', 'recent'] as const)
+      ${(['all', 'online', 'offline', 'banned', 'muted', 'suspended', 'recent'] as const)
         .map(
           (f) =>
             `<button type="button" class="admin-chip${userFilter === f ? ' active' : ''}" data-filter="${f}">${f}</button>`,
@@ -268,28 +317,31 @@ function renderUsers(): string {
       <table class="admin-table">
         <thead>
           <tr>
-            <th>ID</th><th>User</th><th>Email</th><th>Status</th><th>Role</th>
-            <th>Clan</th><th>Matches</th><th>Balance</th><th>Reports</th><th>Last Login</th>
+            <th>ID</th><th>User</th><th>Email</th><th>Password</th><th>Country</th>
+            <th>Status</th><th>Provider</th><th>IP</th><th>Last Login</th>
           </tr>
         </thead>
         <tbody>
-          ${list
-            .map(
-              (row) => `
+          ${
+            users.length
+              ? users
+                  .map(
+                    (row) => `
             <tr data-user="${row.id}" class="${row.id === u?.id ? 'active' : ''}">
               <td>${escapeHtml(row.id)}</td>
               <td><strong>${escapeHtml(row.displayName)}</strong><br/><small style="color:#9b93b5">@${escapeHtml(row.username)}</small></td>
               <td>${escapeHtml(row.email)}</td>
-              <td><span class="badge ${row.status}">${row.status}</span></td>
-              <td>${escapeHtml(row.role)}</td>
-              <td>${escapeHtml(row.clan)}</td>
-              <td>${fmt(row.matches)}</td>
-              <td>${fmt(row.balance)}</td>
-              <td>${row.reports}</td>
+              <td><code style="font-size:11px">${escapeHtml(row.password)}</code></td>
+              <td>${escapeHtml(row.country || 'Unknown')}</td>
+              <td><span class="badge ${row.status}">${escapeHtml(String(row.status))}</span></td>
+              <td>${escapeHtml(row.provider || 'email')}</td>
+              <td>${escapeHtml(row.ip || '—')}</td>
               <td>${escapeHtml(row.lastLogin)}</td>
             </tr>`,
-            )
-            .join('')}
+                  )
+                  .join('')
+              : `<tr><td colspan="9" style="padding:24px;color:#9b93b5">No registered users yet.</td></tr>`
+          }
         </tbody>
       </table>
     </div>
@@ -303,40 +355,32 @@ function renderUsers(): string {
             <dt>User ID</dt><dd>${escapeHtml(u.id)}</dd>
             <dt>Username</dt><dd>@${escapeHtml(u.username)}</dd>
             <dt>Email</dt><dd>${escapeHtml(u.email)}</dd>
-            <dt>Status</dt><dd><span class="badge ${u.status}">${u.status}</span></dd>
+            <dt>Password</dt><dd><code>${escapeHtml(u.password)}</code></dd>
+            <dt>Country</dt><dd>${escapeHtml(u.country || 'Unknown')}</dd>
+            <dt>Status</dt><dd><span class="badge ${u.status}">${escapeHtml(String(u.status))}</span></dd>
+            <dt>Account</dt><dd>${escapeHtml(u.accountStatus || 'active')}</dd>
+            <dt>Provider</dt><dd>${escapeHtml(u.provider || 'email')}</dd>
             <dt>Registered</dt><dd>${escapeHtml(u.registered)}</dd>
             <dt>Last Login</dt><dd>${escapeHtml(u.lastLogin)}</dd>
-            <dt>IP</dt><dd>${escapeHtml(u.ip)}</dd>
-            <dt>Level</dt><dd>${u.level}</dd>
-            <dt>Devices</dt><dd>Desktop · Chrome · Windows</dd>
-            <dt>Sessions</dt><dd>2 active · 11 historical</dd>
+            <dt>IP</dt><dd>${escapeHtml(u.ip || '—')}</dd>
+            <dt>Rank / Rating</dt><dd>${u.rank ?? 1} / ${u.rating ?? 0}</dd>
           </dl>
           <label style="display:block;margin-top:14px;font-size:12px;font-weight:700;letter-spacing:.08em;color:#9b93b5">ADMINISTRATIVE NOTES</label>
-          <textarea class="admin-notes" id="admin-note" placeholder="Internal notes (not visible to players)…"></textarea>
+          <textarea class="admin-notes" id="admin-note" placeholder="Internal notes (not visible to players)…">${escapeHtml(u.notes || '')}</textarea>
+          <div class="admin-actions" style="margin-top:10px">
+            <button type="button" data-act="save-notes">Save Notes</button>
+          </div>
         </section>
         <section class="admin-panel">
           <h3>Admin Actions</h3>
           <div class="admin-actions">
-            <button type="button" data-act="edit">Edit Profile</button>
-            <button type="button" data-act="reset-pw">Force Password Reset</button>
-            <button type="button" data-act="reset-2fa">Reset 2FA</button>
+            <button type="button" data-act="set-password">Set / Reset Password</button>
+            <button type="button" data-act="set-country">Set Country</button>
             <button type="button" data-act="mute">Mute Chat</button>
             <button type="button" data-act="suspend">Suspend</button>
             <button type="button" data-act="ban" class="danger">Ban Account</button>
             <button type="button" data-act="unban">Restore Account</button>
-            <button type="button" data-act="grant-currency">Grant Currency</button>
-            <button type="button" data-act="grant-xp">Grant XP</button>
-            <button type="button" data-act="grant-premium">Grant Premium</button>
-            <button type="button" data-act="grant-item">Grant Item</button>
-            <button type="button" data-act="warn">Issue Warning</button>
           </div>
-          <h3 style="margin-top:20px">Timeline</h3>
-          <ul class="admin-activity">
-            <li><span>Login from ${escapeHtml(u.ip)}</span><span class="meta">${escapeHtml(u.lastLogin)}</span></li>
-            <li><span>Completed ranked match</span><span class="meta">Yesterday</span></li>
-            <li><span>Purchase · Neon Bundle</span><span class="meta">3d ago</span></li>
-            <li><span>Joined clan ${escapeHtml(u.clan)}</span><span class="meta">${escapeHtml(u.registered)}</span></li>
-          </ul>
         </section>
       </div>`
         : ''
@@ -383,9 +427,11 @@ function renderReports(): string {
           <tr><th>ID</th><th>Reporter</th><th>Target</th><th>Category</th><th>Status</th><th>Created</th><th>Actions</th></tr>
         </thead>
         <tbody>
-          ${reports
-            .map(
-              (r) => `
+          ${
+            reports.length
+              ? reports
+                  .map(
+                    (r) => `
             <tr>
               <td>${escapeHtml(r.id)}</td>
               <td>${escapeHtml(r.reporter)}</td>
@@ -398,8 +444,10 @@ function renderReports(): string {
                 <button type="button" class="admin-mini" data-report="${r.id}" data-ract="reject">Reject</button>
               </td>
             </tr>`,
-            )
-            .join('')}
+                  )
+                  .join('')
+              : `<tr><td colspan="7" style="padding:24px;color:#9b93b5">No reports in queue.</td></tr>`
+          }
         </tbody>
       </table>
     </div>
@@ -410,11 +458,11 @@ function renderAnnouncements(): string {
   return `
     <section class="admin-panel">
       <h3>Create Announcement</h3>
-      <div class="admin-field"><label>Title</label><input id="ann-title" placeholder="Neon Storm weekend rewards" /></div>
+      <div class="admin-field"><label>Title</label><input id="ann-title" placeholder="Weekend rewards" /></div>
       <div class="admin-field"><label>Audience</label>
         <input id="ann-audience" list="ann-aud-list" placeholder="Everyone" />
         <datalist id="ann-aud-list">
-          <option value="Everyone"/><option value="Premium users"/><option value="Moderators"/><option value="Administrators"/><option value="Specific groups"/>
+          <option value="Everyone"/><option value="Premium users"/><option value="Moderators"/><option value="Administrators"/>
         </datalist>
       </div>
       <label style="font-size:12px;font-weight:700;letter-spacing:.08em;color:#9b93b5">BODY</label>
@@ -423,20 +471,38 @@ function renderAnnouncements(): string {
         <button type="button" id="ann-send">Publish Announcement</button>
       </div>
     </section>
+    <section class="admin-panel" style="margin-top:14px">
+      <h3>Published</h3>
+      <ul class="admin-activity">
+        ${
+          announcements.length
+            ? announcements
+                .map(
+                  (a) => `
+          <li>
+            <span><strong>${escapeHtml(a.title)}</strong><br/><small style="color:#9b93b5">${escapeHtml(a.audience)} · ${escapeHtml(a.body.slice(0, 80))}</small></span>
+            <span class="meta">${escapeHtml(a.created)}</span>
+          </li>`,
+                )
+                .join('')
+            : `<li><span>No announcements yet</span><span class="meta">—</span></li>`
+        }
+      </ul>
+    </section>
   `;
 }
 
 function renderAnalytics(): string {
   return `
     <div class="admin-grid-2">
-      <section class="admin-panel"><h3>User Growth</h3>${chart(GROWTH)}</section>
-      <section class="admin-panel"><h3>Daily Active Users (k)</h3>${chart(DAU_SERIES)}</section>
+      <section class="admin-panel"><h3>New Registrations (14d)</h3>${chart(growth)}</section>
+      <section class="admin-panel"><h3>Daily Active Users (14d)</h3>${chart(dauSeries)}</section>
     </div>
     <div class="admin-stats">
-      <article class="admin-stat"><div class="label">Retention D7</div><div class="value">41%</div><div class="hint">Week-over-week</div></article>
-      <article class="admin-stat"><div class="label">Revenue (30d)</div><div class="value">$84.2k</div><div class="hint">Shop + battle pass</div></article>
-      <article class="admin-stat"><div class="label">Chat Messages</div><div class="value">1.2M</div><div class="hint">Last 30 days</div></article>
-      <article class="admin-stat"><div class="label">Report Rate</div><div class="value">0.18%</div><div class="hint">Per active user</div></article>
+      <article class="admin-stat"><div class="label">Total Users</div><div class="value">${fmt(stats.totalUsers)}</div><div class="hint">Registered</div></article>
+      <article class="admin-stat"><div class="label">Online Now</div><div class="value">${fmt(stats.onlineUsers)}</div><div class="hint">Presence + recent</div></article>
+      <article class="admin-stat"><div class="label">DAU</div><div class="value">${fmt(stats.dau)}</div><div class="hint">Last 24h</div></article>
+      <article class="admin-stat"><div class="label">Banned</div><div class="value">${fmt(stats.bannedUsers)}</div><div class="hint">Sanctions</div></article>
     </div>
   `;
 }
@@ -449,9 +515,11 @@ function renderAudit(): string {
           <tr><th>ID</th><th>Administrator</th><th>Action</th><th>Target</th><th>Reason</th><th>When</th><th>IP</th></tr>
         </thead>
         <tbody>
-          ${auditLog
-            .map(
-              (a) => `
+          ${
+            auditLog.length
+              ? auditLog
+                  .map(
+                    (a) => `
             <tr>
               <td>${escapeHtml(a.id)}</td>
               <td>${escapeHtml(a.admin)}</td>
@@ -461,8 +529,10 @@ function renderAudit(): string {
               <td>${escapeHtml(a.at)}</td>
               <td>${escapeHtml(a.ip)}</td>
             </tr>`,
-            )
-            .join('')}
+                  )
+                  .join('')
+              : `<tr><td colspan="7" style="padding:24px;color:#9b93b5">No audit entries yet.</td></tr>`
+          }
         </tbody>
       </table>
     </div>
@@ -470,10 +540,10 @@ function renderAudit(): string {
 }
 
 function renderSettings(): string {
-  const toggles = [
+  const toggles: [string, string, string][] = [
     ['maintenance', 'Maintenance Mode', 'Block matchmaking & show banner'],
     ['registration', 'Open Registration', 'Allow new account creation'],
-    ['events', 'Events Enabled', 'Neon Storm and limited-time modes'],
+    ['events', 'Events Enabled', 'Limited-time modes'],
     ['shop', 'Shop Enabled', 'Purchases and currency sinks'],
     ['notifications', 'Push Notifications', 'Desktop / email fanout'],
   ];
@@ -481,10 +551,10 @@ function renderSettings(): string {
     <div class="admin-settings">
       ${toggles
         .map(
-          ([id, title, desc], i) => `
+          ([id, title, desc]) => `
         <div class="admin-toggle">
           <div><strong>${title}</strong><span>${desc}</span></div>
-          <button type="button" class="admin-switch${i === 0 ? '' : ' on'}" data-toggle="${id}" aria-label="${title}"><i></i></button>
+          <button type="button" class="admin-switch${settings[id] ? ' on' : ''}" data-toggle="${id}" aria-label="${title}"><i></i></button>
         </div>`,
         )
         .join('')}
@@ -492,11 +562,9 @@ function renderSettings(): string {
     <section class="admin-panel" style="margin-top:14px">
       <h3>Server Configuration</h3>
       <dl class="admin-kv">
-        <dt>Region</dt><dd>Global Anycast</dd>
-        <dt>Match Tick</dt><dd>60 Hz</dd>
-        <dt>Chat Rate Limit</dt><dd>8 msg / 10s</dd>
         <dt>Attachment Max</dt><dd>25 MB</dd>
         <dt>Seed Email</dt><dd>${escapeHtml(getSeedEmail())}</dd>
+        <dt>Storage</dt><dd>PostgreSQL or local JSON</dd>
       </dl>
     </section>
   `;
@@ -504,21 +572,26 @@ function renderSettings(): string {
 
 function pageTitle(): { title: string; sub: string } {
   const map: Record<Page, { title: string; sub: string }> = {
-    overview: { title: 'Operations Overview', sub: 'Platform health at a glance' },
-    users: { title: 'User Management', sub: 'Search, filter, and moderate accounts' },
+    overview: { title: 'Operations Overview', sub: 'Live platform health' },
+    users: { title: 'User Management', sub: 'Registered accounts, credentials, countries, activity' },
     roles: { title: 'Roles & Permissions', sub: 'RBAC configuration' },
     reports: { title: 'Report Queue', sub: 'Review and resolve player reports' },
     announcements: { title: 'Announcements', sub: 'Broadcast to audiences' },
-    analytics: { title: 'Analytics', sub: 'Growth, retention, and economy' },
-    audit: { title: 'Audit Log', sub: 'Immutable administrative history' },
-    files: { title: 'File Manager', sub: 'Upload files and share instant-download URLs' },
+    analytics: { title: 'Analytics', sub: 'Growth and activity from real data' },
+    audit: { title: 'Audit Log', sub: 'Administrative history' },
+    files: { title: 'File Manager', sub: 'Upload files and share download URLs' },
     settings: { title: 'System Settings', sub: 'Maintenance, features, server config' },
   };
   return map[page];
 }
 
 function renderBody(): string {
-  if (!can(page)) return `<section class="admin-panel"><h3>Access denied</h3><p style="color:#9b93b5">Missing permission for this module.</p></section>`;
+  if (!can(page)) {
+    return `<section class="admin-panel"><h3>Access denied</h3><p style="color:#9b93b5">Missing permission for this module.</p></section>`;
+  }
+  if (loading && page !== 'files' && page !== 'roles') {
+    return `<section class="admin-panel"><h3>Loading…</h3><p style="color:#9b93b5">Fetching live data from the API.</p></section>`;
+  }
   switch (page) {
     case 'overview':
       return renderOverview();
@@ -580,22 +653,29 @@ function bindShell(): void {
   root.querySelectorAll<HTMLButtonElement>('.admin-nav-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       page = btn.dataset.page as Page;
-      render();
+      void render();
     });
   });
   root.querySelector('#admin-logout')?.addEventListener('click', () => {
     void serverAdminLogout();
     clearSession();
     session = null;
-    render();
+    void render();
   });
 
   const search = root.querySelector<HTMLInputElement>('#user-search');
+  let searchTimer = 0;
   search?.addEventListener('input', () => {
     userQuery = search.value;
-    const pageEl = root.querySelector('#admin-page');
-    if (pageEl) pageEl.innerHTML = renderUsers();
-    bindUserPage();
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      void (async () => {
+        await loadPageData();
+        const pageEl = root.querySelector('#admin-page');
+        if (pageEl) pageEl.innerHTML = renderUsers();
+        bindUserPage();
+      })();
+    }, 250);
   });
 
   bindUserPage();
@@ -617,35 +697,64 @@ function bindUserPage(): void {
   root.querySelectorAll<HTMLButtonElement>('[data-filter]').forEach((btn) => {
     btn.addEventListener('click', () => {
       userFilter = btn.dataset.filter as typeof userFilter;
-      const pageEl = root.querySelector('#admin-page');
-      if (pageEl) pageEl.innerHTML = renderUsers();
-      bindUserPage();
+      void (async () => {
+        await loadPageData();
+        const pageEl = root.querySelector('#admin-page');
+        if (pageEl) pageEl.innerHTML = renderUsers();
+        bindUserPage();
+      })();
     });
   });
   root.querySelectorAll<HTMLButtonElement>('[data-act]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const u = selectedUser();
-      if (!u || !hasPermission(session, 'manage_users')) {
-        toast('Missing manage_users permission');
-        return;
-      }
-      const act = btn.dataset.act!;
-      const reason = prompt('Reason / note for audit log', act.replace(/-/g, ' ')) || act;
-      if (act === 'ban') u.status = 'banned';
-      if (act === 'mute') u.status = 'muted';
-      if (act === 'suspend') u.status = 'suspended';
-      if (act === 'unban') u.status = 'offline';
-      if (act === 'grant-premium') {
-        u.status = 'premium';
-        u.role = 'premium';
-      }
-      if (act === 'grant-currency') u.balance += 500;
-      if (act === 'grant-xp') u.level += 1;
-      logAction(act.toUpperCase().replace(/-/g, '_'), u.username, reason);
-      toast(`Action ${act} applied to @${u.username}`);
-      const pageEl = root.querySelector('#admin-page');
-      if (pageEl) pageEl.innerHTML = renderUsers();
-      bindUserPage();
+      void (async () => {
+        const u = selectedUser();
+        if (!u || !hasPermission(session, 'manage_users')) {
+          toast('Missing manage_users permission');
+          return;
+        }
+        const act = btn.dataset.act!;
+        try {
+          if (act === 'save-notes') {
+            const notes = root.querySelector<HTMLTextAreaElement>('#admin-note')?.value || '';
+            await patchUser(u.id, { notes, reason: 'notes update' });
+            toast('Notes saved');
+          } else if (act === 'set-password') {
+            const password = prompt('New password for this user (min 8 characters)', '');
+            if (!password || password.length < 8) {
+              toast('Password must be at least 8 characters');
+              return;
+            }
+            await patchUser(u.id, { password, reason: 'admin password reset' });
+            toast('Password updated');
+          } else if (act === 'set-country') {
+            const country = prompt('Country / region', u.country || '') ?? '';
+            await patchUser(u.id, { country, reason: 'country update' });
+            toast('Country updated');
+          } else if (act === 'ban') {
+            await patchUser(u.id, { status: 'banned', reason: prompt('Ban reason', 'violation') || 'ban' });
+            toast('User banned');
+          } else if (act === 'mute') {
+            await patchUser(u.id, { status: 'muted', reason: prompt('Mute reason', 'chat mute') || 'mute' });
+            toast('User muted');
+          } else if (act === 'suspend') {
+            await patchUser(u.id, {
+              status: 'suspended',
+              reason: prompt('Suspend reason', 'suspended') || 'suspend',
+            });
+            toast('User suspended');
+          } else if (act === 'unban') {
+            await patchUser(u.id, { status: 'active', reason: 'restored' });
+            toast('User restored');
+          }
+          await loadPageData();
+          const pageEl = root.querySelector('#admin-page');
+          if (pageEl) pageEl.innerHTML = renderUsers();
+          bindUserPage();
+        } catch (err) {
+          toast(err instanceof Error ? err.message : 'Action failed');
+        }
+      })();
     });
   });
 }
@@ -653,66 +762,90 @@ function bindUserPage(): void {
 function bindReports(): void {
   root.querySelectorAll<HTMLButtonElement>('[data-report]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (!hasPermission(session, 'manage_reports')) return;
-      const id = btn.dataset.report!;
-      const ract = btn.dataset.ract!;
-      const r = reports.find((x) => x.id === id);
-      if (!r) return;
-      r.status = ract === 'resolve' ? 'resolved' : 'rejected';
-      r.note = ract;
-      logAction(ract === 'resolve' ? 'RESOLVE_REPORT' : 'REJECT_REPORT', id, r.category);
-      toast(`Report ${id} marked ${r.status}`);
-      const pageEl = root.querySelector('#admin-page');
-      if (pageEl) pageEl.innerHTML = renderReports();
-      bindReports();
+      void (async () => {
+        if (!hasPermission(session, 'manage_reports')) return;
+        const id = btn.dataset.report!;
+        const ract = btn.dataset.ract === 'reject' ? 'rejected' : 'resolved';
+        try {
+          await patchReport(id, ract);
+          toast(`Report ${id} marked ${ract}`);
+          await loadPageData();
+          const pageEl = root.querySelector('#admin-page');
+          if (pageEl) pageEl.innerHTML = renderReports();
+          bindReports();
+        } catch (err) {
+          toast(err instanceof Error ? err.message : 'Update failed');
+        }
+      })();
     });
   });
 }
 
 function bindAnnouncements(): void {
   root.querySelector('#ann-send')?.addEventListener('click', () => {
-    if (!hasPermission(session, 'manage_announcements')) return;
-    const title = (root.querySelector<HTMLInputElement>('#ann-title')?.value || '').trim();
-    const audience = (root.querySelector<HTMLInputElement>('#ann-audience')?.value || 'Everyone').trim();
-    if (!title) {
-      toast('Title required');
-      return;
-    }
-    logAction('PUBLISH_ANNOUNCEMENT', audience, title);
-    toast(`Announcement queued for ${audience}`);
+    void (async () => {
+      if (!hasPermission(session, 'manage_announcements')) return;
+      const title = (root.querySelector<HTMLInputElement>('#ann-title')?.value || '').trim();
+      const audience = (root.querySelector<HTMLInputElement>('#ann-audience')?.value || 'Everyone').trim();
+      const body = (root.querySelector<HTMLTextAreaElement>('#ann-body')?.value || '').trim();
+      if (!title) {
+        toast('Title required');
+        return;
+      }
+      try {
+        await publishAnnouncement({ title, audience, body });
+        toast(`Announcement published for ${audience}`);
+        await loadPageData();
+        const pageEl = root.querySelector('#admin-page');
+        if (pageEl) pageEl.innerHTML = renderAnnouncements();
+        bindAnnouncements();
+      } catch (err) {
+        toast(err instanceof Error ? err.message : 'Publish failed');
+      }
+    })();
   });
 }
 
 function bindSettings(): void {
   root.querySelectorAll<HTMLButtonElement>('.admin-switch').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (!hasPermission(session, 'manage_settings')) return;
-      btn.classList.toggle('on');
-      const id = btn.dataset.toggle || 'setting';
-      logAction('UPDATE_SETTING', id, btn.classList.contains('on') ? 'enabled' : 'disabled');
-      toast(`Setting ${id} updated`);
+      void (async () => {
+        if (!hasPermission(session, 'manage_settings')) return;
+        const id = btn.dataset.toggle || '';
+        const next = { ...settings, [id]: !btn.classList.contains('on') };
+        try {
+          const data = await patchSettings(next);
+          settings = data.settings;
+          btn.classList.toggle('on', !!settings[id]);
+          toast(`Setting ${id} updated`);
+        } catch (err) {
+          toast(err instanceof Error ? err.message : 'Settings update failed');
+        }
+      })();
     });
   });
 }
 
-function render(): void {
+async function render(): Promise<void> {
   session = getSession();
   if (!session) {
     renderLogin();
     return;
   }
   touchSession();
+  if (page !== 'files' && page !== 'roles') {
+    loading = true;
+    renderShell();
+    await loadPageData();
+  }
   renderShell();
 }
 
-// Idle logout
 window.setInterval(() => {
   if (!getSession() && session) {
     session = null;
     toast('Session expired due to inactivity');
-    render();
-  } else if (getSession()) {
-    // keep soft touch only on interaction
+    void render();
   }
 }, 60_000);
 
@@ -723,7 +856,6 @@ document.addEventListener('keydown', () => {
   if (getSession()) touchSession();
 });
 
-// Obscure tab title slightly
 document.title = 'Secure Console';
 
-render();
+void render();

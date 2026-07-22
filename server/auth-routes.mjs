@@ -8,9 +8,11 @@ import {
   findUserByUsername,
   getPending,
   getSessionUser,
+  getSettings,
   publicUser,
   resendPendingOtp,
   setPendingEmailStatus,
+  touchUserActivity,
   verifyPassword,
 } from './store.mjs';
 import { sendOtpEmail } from './mail.mjs';
@@ -22,6 +24,28 @@ function bearer(req) {
   const h = req.headers.authorization || '';
   const m = /^Bearer\s+(.+)$/i.exec(h);
   return m?.[1] ?? req.body?.token ?? null;
+}
+
+function clientIp(req) {
+  const xf = req.headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.trim()) return xf.split(',')[0].trim();
+  return req.socket?.remoteAddress || '';
+}
+
+function detectCountry(req, bodyCountry) {
+  if (bodyCountry && String(bodyCountry).trim()) return String(bodyCountry).trim().slice(0, 64);
+  const header =
+    req.headers['cf-ipcountry'] ||
+    req.headers['x-vercel-ip-country'] ||
+    req.headers['x-country-code'] ||
+    '';
+  if (header && String(header).length <= 3 && String(header).toUpperCase() !== 'XX') {
+    return String(header).toUpperCase();
+  }
+  const lang = String(req.headers['accept-language'] || '');
+  const m = /^([a-z]{2})(?:-([A-Z]{2}))?/i.exec(lang);
+  if (m?.[2]) return m[2].toUpperCase();
+  return '';
 }
 
 function validateRegister({ email, username, password }) {
@@ -71,7 +95,15 @@ export function createAuthRouter(mailer) {
   /** Step 1: name + email + password → create pending, send OTP, then client shows verify page */
   router.post('/register/start', async (req, res) => {
     try {
-      const { email, username, password, name } = req.body ?? {};
+      const settings = await getSettings();
+      if (settings.registration === false) {
+        return res.status(403).json({ ok: false, error: 'Registration is currently closed.' });
+      }
+      if (settings.maintenance) {
+        return res.status(503).json({ ok: false, error: 'Platform is in maintenance mode.' });
+      }
+
+      const { email, username, password, name, country } = req.body ?? {};
       const displayName = String(name || username || '').trim();
       const error = validateRegister({ email, username: displayName, password });
       if (error) return res.status(400).json({ ok: false, error });
@@ -90,6 +122,7 @@ export function createAuthRouter(mailer) {
         username: uname,
         password,
         provider: hint.provider,
+        country: detectCountry(req, country),
       });
 
       // Respond immediately so the UI can open the verification page,
@@ -133,6 +166,7 @@ export function createAuthRouter(mailer) {
       const result = await confirmPendingSignup(pendingId, code);
       if (!result.ok) return res.status(400).json(result);
 
+      await touchUserActivity(result.user.id, { ip: clientIp(req) });
       const token = await createSession(result.user.id);
       return res.status(201).json({
         ok: true,
@@ -176,6 +210,11 @@ export function createAuthRouter(mailer) {
         return res.status(400).json({ ok: false, error: 'Email and password are required.' });
       }
 
+      const settings = await getSettings();
+      if (settings.maintenance) {
+        return res.status(503).json({ ok: false, error: 'Platform is in maintenance mode.' });
+      }
+
       const user = await findUserByEmail(email);
       if (!user || !user.password || !verifyPassword(password, user.password)) {
         return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
@@ -186,7 +225,14 @@ export function createAuthRouter(mailer) {
           error: 'This account is not verified. Sign up again to receive a new code.',
         });
       }
+      if (user.status === 'banned') {
+        return res.status(403).json({ ok: false, error: 'This account has been banned.' });
+      }
+      if (user.status === 'suspended') {
+        return res.status(403).json({ ok: false, error: 'This account is suspended.' });
+      }
 
+      await touchUserActivity(user.id, { ip: clientIp(req) });
       const token = await createSession(user.id);
       return res.json({ ok: true, token, user: publicUser(user) });
     } catch (err) {
@@ -198,6 +244,10 @@ export function createAuthRouter(mailer) {
   router.get('/me', async (req, res) => {
     const user = await getSessionUser(bearer(req));
     if (!user) return res.status(401).json({ ok: false, error: 'Not signed in.' });
+    if (user.status === 'banned' || user.status === 'suspended') {
+      return res.status(403).json({ ok: false, error: 'Account restricted.', user: publicUser(user) });
+    }
+    await touchUserActivity(user.id, { ip: clientIp(req) });
     return res.json({ ok: true, user: publicUser(user) });
   });
 
