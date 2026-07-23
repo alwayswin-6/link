@@ -1,7 +1,22 @@
-import newsUpdates1 from './assets/news/news-updates-1.png';
-import newsUpdates2 from './assets/news/news-updates-2.png';
-import newsUpdates3 from './assets/news/news-updates-3.png';
 import { chatRoomHTML } from './chat';
+
+/** Green placeholders in /public/position — replace by renaming your real art to these filenames. */
+const IMG = {
+  hero: '/position/game-hero-placeholder.png',
+  cover1: '/position/game-cover-1.png',
+  cover2: '/position/game-cover-2.png',
+  cover3: '/position/game-cover-3.png',
+  cover4: '/position/game-cover-4.png',
+  modeQuick: '/position/game-mode-quick.png',
+  modeRanked: '/position/game-mode-ranked.png',
+  modeCustom: '/position/game-mode-custom.png',
+  modeTraining: '/position/game-mode-training.png',
+  news1: '/position/game-news-1.png',
+  news2: '/position/game-news-2.png',
+  news3: '/position/game-news-3.png',
+  event: '/position/game-event-placeholder.png',
+  community: '/position/game-community-placeholder.png',
+} as const;
 
 export function dashboardHTML(): string {
   return `
@@ -27,7 +42,7 @@ export function dashboardHTML(): string {
         <div class="dash-topbar-right">
           <label class="dash-search" aria-label="Search">
             <span class="dash-search-ico" aria-hidden="true">${iconSearch()}</span>
-            <input type="search" placeholder="Search players, news…" id="dash-search" />
+            <input type="search" placeholder="Search games, players…" id="dash-search" />
           </label>
           <button type="button" class="dash-icon-btn dash-theme-toggle" id="theme-toggle" aria-label="Toggle light and dark theme" title="Toggle theme">${iconTheme()}</button>
           <button type="button" class="dash-icon-btn has-dot" id="topbar-chat" aria-label="Open chat" title="Chat">${iconChat()}</button>
@@ -50,22 +65,22 @@ export function dashboardHTML(): string {
       <div class="dash-scroll" id="dash-home">
         <div class="dash-content">
           <!-- HERO -->
-          <section class="dash-hero reveal">
+          <section class="dash-hero">
             <div class="dash-hero-bg" aria-hidden="true">
               <div class="dash-hero-slides" id="hero-slides">
-                <img class="dash-hero-slide active" src="/position/image1.png" alt="" data-index="0" loading="eager" decoding="async" />
-                <img class="dash-hero-slide" src="/position/image2.png" alt="" data-index="1" loading="lazy" decoding="async" />
-                <img class="dash-hero-slide" src="/position/image3.png" alt="" data-index="2" loading="lazy" decoding="async" />
-                <img class="dash-hero-slide" src="/position/image4.png" alt="" data-index="3" loading="lazy" decoding="async" />
+                <img class="dash-hero-slide active" src="${IMG.hero}" alt="" data-index="0" loading="eager" decoding="async" />
+                <img class="dash-hero-slide" src="${IMG.cover1}" alt="" data-index="1" loading="lazy" decoding="async" />
+                <img class="dash-hero-slide" src="${IMG.cover2}" alt="" data-index="2" loading="lazy" decoding="async" />
+                <img class="dash-hero-slide" src="${IMG.event}" alt="" data-index="3" loading="lazy" decoding="async" />
               </div>
               <div class="dash-hero-veil"></div>
             </div>
             <div class="dash-hero-body">
               <div class="dash-hero-copy">
-                <p class="dash-hero-eyebrow">Season 1 · Live now</p>
-                <h1 class="dash-hero-title">Capture. Connect. Conquer.</h1>
+                <p class="dash-hero-eyebrow">Featured game</p>
+                <h1 class="dash-hero-title">LINK</h1>
                 <p class="dash-hero-sub">
-                  The competitive arena awaits. Download LINK, queue into ranked, and climb with precision.
+                  Capture energy nodes, draw the battlefield, and climb ranked. Download and play.
                 </p>
                 <div class="dash-hero-actions">
                   <button type="button" class="dash-btn-play" id="play-now-btn">
@@ -74,14 +89,12 @@ export function dashboardHTML(): string {
                   </button>
                   <button type="button" class="dash-btn-how" id="quick-play-btn">
                     <span class="dash-play-ico">${iconPlay()}</span>
-                    Quick Play
+                    Play now
                   </button>
-                  <button type="button" class="dash-btn-ghost">Latest update</button>
                 </div>
                 <div class="dash-hero-meta">
                   <span class="dash-hero-chip"><span class="live-dot"></span> 24,582 online</span>
                   <span class="dash-hero-chip">Patch 0.1.0</span>
-                  <span class="dash-hero-chip">Avg queue 15s</span>
                 </div>
               </div>
               <div class="dash-hero-dots" id="hero-dots">
@@ -93,40 +106,50 @@ export function dashboardHTML(): string {
             </div>
           </section>
 
-          <!-- GAME MODES -->
-          <section class="dash-section reveal">
+          <!-- GAMES LIBRARY -->
+          <section class="dash-section">
             <div class="dash-section-head">
               <div>
-                <h2 class="dash-section-title">Play</h2>
-                <p class="dash-section-desc">Choose your arena and jump in.</p>
+                <h2 class="dash-section-title">Games</h2>
+                <p class="dash-section-desc">Your library — replace green placeholders with real cover art.</p>
               </div>
-              <a class="dash-view-all gm-viewall" href="#">View all ${iconArrowRight()}</a>
+              <a class="dash-view-all gm-viewall" href="#">Browse all ${iconArrowRight()}</a>
+            </div>
+            <div class="dash-library">
+              ${gameCover(IMG.cover1, 'LINK', 'Competitive arena', 'Installed', true)}
+              ${gameCover(IMG.cover2, 'Neon Storm', 'Seasonal event', 'Play')}
+              ${gameCover(IMG.cover3, 'Training Grounds', 'Practice mode', 'Play')}
+              ${gameCover(IMG.cover4, 'Custom Lobbies', 'Private matches', 'Open')}
+            </div>
+          </section>
+
+          <!-- GAME MODES -->
+          <section class="dash-section">
+            <div class="dash-section-head">
+              <div>
+                <h2 class="dash-section-title">Modes</h2>
+                <p class="dash-section-desc">Pick how you want to play today.</p>
+              </div>
             </div>
             <div class="dash-modes">
               ${modeCard({
                 color: 'cyan',
+                image: IMG.modeQuick,
                 icon: iconModeQuick(),
                 title: 'Quick Match',
-                desc: 'Fast online battles with players worldwide.',
-                chips: [
-                  [iconUsers(), '2–8 Players'],
-                  [iconMap(), 'Random maps'],
-                  [iconBolt(), 'Avg queue: 15s'],
-                ],
+                desc: 'Jump into a fast online match.',
+                meta: '2–8 players · ~15s queue',
                 button: 'Download',
                 status: 'Live',
                 buttonId: 'mode-quick',
               })}
               ${modeCard({
                 color: 'violet',
+                image: IMG.modeRanked,
                 icon: iconModeRanked(),
                 title: 'Ranked',
-                desc: 'Climb the seasonal ladder with skill-based matchmaking.',
-                chips: [
-                  [iconTrophySimple(), 'Competitive'],
-                  [iconCalendar(), 'Season 1'],
-                  [iconStar(), 'Skill rating'],
-                ],
+                desc: 'Climb the seasonal leaderboard.',
+                meta: 'Season 1 · Skill rating',
                 button: 'Start ranked',
                 badge: 'Competitive',
                 featured: true,
@@ -134,43 +157,37 @@ export function dashboardHTML(): string {
               })}
               ${modeCard({
                 color: 'blue',
+                image: IMG.modeCustom,
                 icon: iconModeCustom(),
-                title: 'Custom Match',
-                desc: 'Private rooms and custom community lobbies.',
-                chips: [
-                  [iconUsers(), 'Private lobby'],
-                  [iconPlay(), 'Invite friends'],
-                  [iconSettings(), 'Custom rules'],
-                ],
+                title: 'Custom',
+                desc: 'Private rooms with friends.',
+                meta: 'Invite · Custom rules',
                 button: 'Create lobby',
                 status: 'Open',
                 buttonId: 'mode-custom',
               })}
               ${modeCard({
                 color: 'teal',
+                image: IMG.modeTraining,
                 icon: iconModeTraining(),
                 title: 'Training',
-                desc: 'Sharpen mechanics against AI without pressure.',
-                chips: [
-                  [iconTarget(), 'Practice arena'],
-                  [iconBot(), 'AI bots'],
-                  [iconBook(), 'Tutorials'],
-                ],
+                desc: 'Practice vs AI bots.',
+                meta: 'Tutorials · Free play',
                 button: 'Start training',
-                status: 'AI ready',
+                status: 'Ready',
                 buttonId: 'mode-training',
               })}
             </div>
           </section>
 
           <!-- RANKINGS -->
-          <section class="dash-section reveal" id="section-ranking">
+          <section class="dash-section" id="section-ranking">
             <div class="dash-section-head">
               <div>
-                <h2 class="dash-section-title">Rankings</h2>
-                <p class="dash-section-desc">Top performers this season.</p>
+                <h2 class="dash-section-title">Top players</h2>
+                <p class="dash-section-desc">Season 1 standings.</p>
               </div>
-              <a class="dash-view-all gold lb-viewall" href="#">View full leaderboard ${iconArrowRight()}</a>
+              <a class="dash-view-all gold lb-viewall" href="#">Full leaderboard ${iconArrowRight()}</a>
             </div>
             <div class="dash-leaderboard">
               ${leaderCard({ rank: 1, name: 'ShadowLink', league: 'Champion', rating: '3,450', winRate: '82%', streak: '9', matches: '285', progress: 84, next: 'Grandmaster', clan: 'LNK' })}
@@ -182,11 +199,11 @@ export function dashboardHTML(): string {
           </section>
 
           <!-- TEAM RANKINGS -->
-          <section class="dash-section reveal">
+          <section class="dash-section">
             <div class="dash-section-head">
               <div>
-                <h2 class="dash-section-title">Team Rankings</h2>
-                <p class="dash-section-desc">Clans competing for seasonal dominance.</p>
+                <h2 class="dash-section-title">Teams</h2>
+                <p class="dash-section-desc">Clan standings this season.</p>
               </div>
               <button type="button" class="dash-btn-join" id="join-team-btn">Join Team</button>
             </div>
@@ -208,106 +225,54 @@ export function dashboardHTML(): string {
           </section>
 
           <!-- NEWS -->
-          <section class="dash-section reveal">
+          <section class="dash-section">
             <div class="dash-section-head">
               <div>
-                <h2 class="dash-section-title">News &amp; Updates</h2>
-                <p class="dash-section-desc">Patches, tips, and platform announcements.</p>
+                <h2 class="dash-section-title">News</h2>
+                <p class="dash-section-desc">Patches and game updates.</p>
               </div>
               <a class="dash-view-all" href="#">View all ${iconArrowRight()}</a>
             </div>
             <div class="dash-news">
-              ${newsCard(
-                'update',
-                'Update',
-                'Patch 0.1.0 Notes',
-                'Balance adjustments, gameplay improvements, bug fixes, and quality-of-life updates are now available.',
-                'May 20, 2024',
-                newsUpdates1
-              )}
-              ${newsCard(
-                'news',
-                'News',
-                'Welcome to LINK',
-                'Welcome to the first season of LINK. Discover new features, competitive modes, and community events.',
-                'May 18, 2024',
-                newsUpdates2
-              )}
-              ${newsCard(
-                'tips',
-                'Tips',
-                'New to LINK?',
-                'Learn the fundamentals, improve your skills, and discover advanced strategies for every match.',
-                'May 16, 2024',
-                newsUpdates3
-              )}
+              ${newsCard('update', 'Update', 'Patch 0.1.0', 'Balance changes, fixes, and QoL improvements.', 'May 20, 2024', IMG.news1)}
+              ${newsCard('news', 'News', 'Season 1 live', 'Ranked ladder, missions, and events are open.', 'May 18, 2024', IMG.news2)}
+              ${newsCard('tips', 'Tips', 'New to LINK?', 'Learn capture, links, and Energy Zones.', 'May 16, 2024', IMG.news3)}
             </div>
           </section>
 
-          <!-- EVENTS -->
-          <section class="dash-section reveal">
+          <!-- EVENT -->
+          <section class="dash-section">
             <div class="dash-section-head">
               <div>
-                <h2 class="dash-section-title">Featured Event</h2>
-                <p class="dash-section-desc">Limited-time challenges and seasonal rewards.</p>
+                <h2 class="dash-section-title">Event</h2>
+                <p class="dash-section-desc">Limited-time rewards.</p>
               </div>
-              <a class="dash-view-all" href="#">View event ${iconArrowRight()}</a>
+              <a class="dash-view-all" href="#">Details ${iconArrowRight()}</a>
             </div>
             <div class="dash-event glass-panel">
-              <img class="evt-bg" src="/position/NEON%20STORM.png" alt="" aria-hidden="true" />
+              <img class="evt-bg" src="${IMG.event}" alt="" aria-hidden="true" />
               <div class="evt-overlay" aria-hidden="true"></div>
               <div class="evt-content">
                 <div class="evt-left">
                   <div class="evt-label">Limited time</div>
                   <h3 class="evt-title">Neon Storm</h3>
-                  <p class="evt-desc">Complete missions and earn exclusive rewards while the event is live.</p>
+                  <p class="evt-desc">Play event missions and unlock exclusive rewards.</p>
                   <div class="evt-countdown">${iconClock()}<span>Ends in 6d 12h 45m</span></div>
-                  <div class="evt-chips">
-                    <span class="evt-chip">${iconBolt()} XP Boost</span>
-                    <span class="evt-chip">${iconSkin()} Exclusive Skin</span>
-                    <span class="evt-chip">${iconBadge()} Player Badge</span>
-                    <span class="evt-chip">${iconCoin()} Event Currency</span>
-                  </div>
                   <button type="button" class="evt-view-btn">View event ${iconArrowRight()}</button>
                 </div>
-                <div class="evt-actions">
-                  <button type="button" class="evt-action" data-tip="Challenges" aria-label="Challenges">${iconTrophySimple()}</button>
-                  <button type="button" class="evt-action" data-tip="Rewards" aria-label="Rewards">${iconGift()}</button>
-                  <button type="button" class="evt-action" data-tip="Leaderboard" aria-label="Leaderboard">${iconRanking()}</button>
-                  <button type="button" class="evt-action" data-tip="Store" aria-label="Store">${iconBag()}</button>
-                </div>
               </div>
             </div>
           </section>
 
-          <!-- COMMUNITY FEED -->
-          <section class="dash-section reveal">
-            <div class="dash-section-head">
-              <div>
-                <h2 class="dash-section-title">Community</h2>
-                <p class="dash-section-desc">Live activity from players around the world.</p>
-              </div>
-              <a class="dash-view-all" href="#community" data-nav="community">Open community ${iconArrowRight()}</a>
-            </div>
-            <div class="dash-feed">
-              ${feedCard('/position/user1.png', 'AriaVolt', 'won a Ranked match', '2m ago', 'Victory', 'win')}
-              ${feedCard('/position/user2.png', 'GridRunner', 'joined Neon Circuit', '8m ago', 'Clan', 'clan')}
-              ${feedCard('/position/image1.png', 'PulseFire', 'unlocked Neon Storm badge', '14m ago', 'Achievement', 'ach')}
-              ${feedCard('/position/image2.png', 'NullTrace', 'hit Diamond III', '22m ago', 'Rank up', 'rank')}
-              ${feedCard('/position/image3.png', 'LinkMaster', 'shared a highlight reel', '31m ago', 'Clip', 'clip')}
-              ${feedCard('/position/image4.png', 'CyberNull', 'queued for Quick Match', '45m ago', 'Live', 'live')}
-            </div>
-          </section>
-
-          <!-- COMMUNITY CTA -->
-          <section class="dash-community reveal">
-            <img class="dash-community-bg" src="/position/JOIN%20OUR%20COMMUNITY.png" alt="" aria-hidden="true" />
+          <!-- COMMUNITY -->
+          <section class="dash-community">
+            <img class="dash-community-bg" src="${IMG.community}" alt="" aria-hidden="true" />
             <div class="dash-community-overlay" aria-hidden="true"></div>
             <div class="dash-community-content">
-              <h2>Join the community</h2>
-              <p>Connect with players, share strategies, and stay informed about upcoming seasons.</p>
+              <h2>Community</h2>
+              <p>Find teammates, share clips, and follow season news.</p>
               <div class="dash-community-actions">
-                <button type="button" class="dash-btn-discord">${iconDiscord()} Join Discord</button>
+                <button type="button" class="dash-btn-discord">${iconDiscord()} Discord</button>
                 <button type="button" class="dash-btn-learn">Learn more ${iconArrowRight()}</button>
               </div>
             </div>
@@ -360,6 +325,22 @@ export function gameViewHTML(): string {
   `;
 }
 
+function gameCover(img: string, title: string, subtitle: string, cta: string, featured = false): string {
+  return `
+    <article class="lib-card${featured ? ' featured' : ''}">
+      <div class="lib-art">
+        <img src="${img}" alt="${title}" />
+        <span class="lib-ph-label">REPLACE IMAGE</span>
+      </div>
+      <div class="lib-body">
+        <h3 class="lib-title">${title}</h3>
+        <p class="lib-sub">${subtitle}</p>
+        <button type="button" class="lib-btn">${cta}</button>
+      </div>
+    </article>
+  `;
+}
+
 function teamRow(
   rank: number,
   name: string,
@@ -385,25 +366,6 @@ function teamRow(
   `;
 }
 
-function feedCard(
-  avatar: string,
-  name: string,
-  action: string,
-  time: string,
-  badge: string,
-  kind: string
-): string {
-  return `
-    <article class="feed-card glass-card">
-      <img class="feed-avatar" src="${avatar}" alt="" />
-      <div class="feed-body">
-        <div class="feed-line"><strong>${name}</strong> ${action}</div>
-        <div class="feed-meta"><span class="feed-badge ${kind}">${badge}</span><span class="feed-time">${time}</span></div>
-      </div>
-    </article>
-  `;
-}
-
 function newsCard(
   tag: string,
   label: string,
@@ -418,13 +380,14 @@ function newsCard(
         <img src="${img}" alt="${title}" />
         <span class="dash-news-shade" aria-hidden="true"></span>
         <span class="dash-news-badge ${tag}">${label}</span>
+        <span class="lib-ph-label sm">REPLACE IMAGE</span>
       </div>
       <div class="dash-news-body">
         <h4>${title}</h4>
         <p class="dash-news-desc">${desc}</p>
         <div class="dash-news-foot">
           <span class="dash-news-date">${iconCalendar()} ${date}</span>
-          <span class="dash-news-more">Read more ${iconArrowRight()}</span>
+          <span class="dash-news-more">Read ${iconArrowRight()}</span>
         </div>
       </div>
     </article>
@@ -446,10 +409,11 @@ function iconModeTraining() {
 
 interface ModeData {
   color: string;
+  image: string;
   icon: string;
   title: string;
   desc: string;
-  chips: [string, string][];
+  meta: string;
   button: string;
   badge?: string;
   status?: string;
@@ -462,21 +426,21 @@ function modeCard(m: ModeData): string {
   const statusEl = statusText
     ? `<span class="gm-status"><span class="gm-status-dot"></span>${statusText}</span>`
     : '';
-  const chips = m.chips
-    .map(
-      ([ico, text]) =>
-        `<span class="gm-chip"><span class="gm-chip-ico">${ico}</span><span class="gm-chip-label">${text}</span></span>`
-    )
-    .join('');
   const idAttr = m.buttonId ? ` id="${m.buttonId}"` : '';
   return `
     <div class="gm-card glass-card ${m.color}${m.featured ? ' featured' : ''}">
-      ${statusEl}
-      <div class="gm-icon">${m.icon}</div>
-      <h3 class="gm-title">${m.title}</h3>
-      <p class="gm-desc">${m.desc}</p>
-      <div class="gm-chips">${chips}</div>
-      <button type="button" class="gm-btn"${idAttr}>${m.button}</button>
+      <div class="gm-art">
+        <img src="${m.image}" alt="" />
+        <span class="lib-ph-label sm">REPLACE IMAGE</span>
+        ${statusEl}
+      </div>
+      <div class="gm-body">
+        <div class="gm-icon">${m.icon}</div>
+        <h3 class="gm-title">${m.title}</h3>
+        <p class="gm-desc">${m.desc}</p>
+        <p class="gm-meta">${m.meta}</p>
+        <button type="button" class="gm-btn"${idAttr}>${m.button}</button>
+      </div>
     </div>
   `;
 }
@@ -510,17 +474,11 @@ function leaderCard(p: LeaderData): string {
       <span class="lb-league">${p.league}</span>
       <span class="lb-meta">
         <span class="lb-clan">[${p.clan}]</span>
-        <span class="lb-season">Season 1</span>
+        <span class="lb-season">S1</span>
       </span>
       <span class="lb-stats">
         <span class="lb-stat"><span class="lb-stat-label">Rating</span><span class="lb-stat-value">${p.rating}</span></span>
-        <span class="lb-stat"><span class="lb-stat-label">Win rate</span><span class="lb-stat-value">${p.winRate}</span></span>
-        <span class="lb-stat"><span class="lb-stat-label">Streak</span><span class="lb-stat-value">${p.streak}</span></span>
-        <span class="lb-stat"><span class="lb-stat-label">Matches</span><span class="lb-stat-value">${p.matches}</span></span>
-      </span>
-      <span class="lb-progress">
-        <span class="lb-bar"><span style="width:${p.progress}%"></span></span>
-        <span class="lb-progress-text">${p.progress}% to ${p.next}</span>
+        <span class="lb-stat"><span class="lb-stat-label">Win %</span><span class="lb-stat-value">${p.winRate}</span></span>
       </span>
     </button>
   `;
@@ -548,9 +506,6 @@ function iconPlay() {
 function iconChat() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 14a3 3 0 0 1-3 3H8l-5 4V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z"/></svg>`;
 }
-function iconSettings() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`;
-}
 function iconTheme() {
   return `<svg class="ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
 }
@@ -566,54 +521,12 @@ function iconDiscord() {
 function iconClock() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
 }
-function iconBolt() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>`;
-}
-function iconSkin() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 5 6l2 2 1-1v13h8V7l1 1 2-2-3-3h-3a2 2 0 0 1-4 0H8z"/></svg>`;
-}
-function iconBadge() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5"/><path d="M8.5 13 7 22l5-3 5 3-1.5-9"/></svg>`;
-}
-function iconCoin() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5a2.5 2 0 0 1 5 0c0 2.5-5 1.5-5 4a2.5 2 0 0 0 5 0"/></svg>`;
-}
 function iconArrowRight() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
 }
 function iconDownload() {
   return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>`;
 }
-function iconTrophySimple() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M6 4h12v4a6 6 0 0 1-12 0V4z"/><path d="M6 5H3v2a3 3 0 0 0 3 3M18 5h3v2a3 3 0 0 1-3 3"/></svg>`;
-}
-function iconGift() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7S11 3 8.5 3 6 5 6 5s.5 2 6 2zM12 7s1-4 3.5-4S18 5 18 5s-.5 2-6 2z"/></svg>`;
-}
-function iconRanking() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>`;
-}
-function iconBag() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>`;
-}
 function iconCalendar() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>`;
-}
-function iconUsers() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
-}
-function iconMap() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>`;
-}
-function iconStar() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.3 6.2 21l1.1-6.5L2.6 9.8l6.5-.9L12 3z"/></svg>`;
-}
-function iconTarget() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>`;
-}
-function iconBot() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9 17h6"/></svg>`;
-}
-function iconBook() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z"/></svg>`;
 }

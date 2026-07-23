@@ -5,7 +5,6 @@ import {
   openCommunity,
   openDownload,
   openEvent,
-  openHowToPlay,
   openMissions,
   openNewsList,
   openPlayer,
@@ -53,8 +52,10 @@ export function initInteractions(cb: InteractionCallbacks): void {
     if (q) showToast(`Searching “${q}”…`);
   });
 
-  // ——— Hero ———
-  dash.querySelector('.dash-btn-ghost')?.addEventListener('click', () => openHowToPlay());
+  // ——— Hero / library ———
+  dash.querySelectorAll<HTMLButtonElement>('.lib-btn').forEach((btn) => {
+    btn.addEventListener('click', () => openDownload());
+  });
   dash.querySelector('#join-team-btn')?.addEventListener('click', () => {
     showToast('Team applications open soon');
   });
@@ -77,19 +78,16 @@ export function initInteractions(cb: InteractionCallbacks): void {
       }
       const head = a.closest('.dash-section-head')?.querySelector('h2')?.textContent?.trim() || '';
       if (/MISSION/i.test(head)) openMissions();
-      else if (/EVENT|Featured/i.test(head)) openEvent();
+      else if (/EVENT/i.test(head)) openEvent();
       else if (/NEWS/i.test(head)) openNewsList(collectArticles(dash));
-      else if (/MODE|Play/i.test(head)) openDownload();
+      else if (/MODE|Play|Games/i.test(head)) openDownload();
       else if (/Community/i.test(head)) openCommunity();
-      else openMissions();
+      else openDownload();
     });
   });
 
   // ——— Events ———
   dash.querySelector('.evt-view-btn')?.addEventListener('click', () => openEvent());
-  dash.querySelectorAll<HTMLButtonElement>('.evt-action').forEach((btn) => {
-    btn.addEventListener('click', () => openEvent());
-  });
 
   // ——— News cards ———
   const articles = collectArticles(dash);
