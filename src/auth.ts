@@ -9,15 +9,13 @@ export interface AuthUser {
   verified: boolean;
   rank?: number;
   rating?: number;
+  country?: string;
   createdAt: string;
 }
 
-type AuthMode = 'login' | 'signup' | 'verify';
+type AuthMode = 'login' | 'signup';
 
 let currentUser: AuthUser | null = null;
-let pendingId: string | null = null;
-let pendingEmail = '';
-let inboxUrl: string | null = null;
 let onAuthChange: ((user: AuthUser | null) => void) | null = null;
 
 function token(): string | null {
@@ -112,7 +110,6 @@ function modalHtml(): string {
       <h2 id="auth-title">Sign in</h2>
       <p class="auth-sub" id="auth-sub">Enter your account to play and save progress.</p>
 
-      <!-- LOGIN PAGE -->
       <div class="auth-page" id="auth-page-login">
         <form class="auth-form" id="auth-login-form" autocomplete="on">
           <label class="auth-field">
@@ -131,7 +128,6 @@ function modalHtml(): string {
         </div>
       </div>
 
-      <!-- SIGNUP PAGE (no verification field) -->
       <div class="auth-page" id="auth-page-signup" hidden>
         <div class="auth-providers">
           <a class="auth-provider" id="auth-oauth-gmail" href="/api/auth/oauth/google">
@@ -157,64 +153,11 @@ function modalHtml(): string {
             <span>Password</span>
             <input type="password" name="password" id="auth-signup-password" required minlength="8" autocomplete="new-password" />
           </label>
-          <label class="auth-field">
-            <span>Country</span>
-            <select name="country" id="auth-signup-country" required>
-              <option value="">Select country</option>
-              <option value="United States">United States</option>
-              <option value="United Kingdom">United Kingdom</option>
-              <option value="Canada">Canada</option>
-              <option value="Germany">Germany</option>
-              <option value="France">France</option>
-              <option value="Spain">Spain</option>
-              <option value="Italy">Italy</option>
-              <option value="Brazil">Brazil</option>
-              <option value="Mexico">Mexico</option>
-              <option value="Japan">Japan</option>
-              <option value="South Korea">South Korea</option>
-              <option value="China">China</option>
-              <option value="India">India</option>
-              <option value="Australia">Australia</option>
-              <option value="Russia">Russia</option>
-              <option value="Turkey">Turkey</option>
-              <option value="Poland">Poland</option>
-              <option value="Netherlands">Netherlands</option>
-              <option value="Sweden">Sweden</option>
-              <option value="Philippines">Philippines</option>
-              <option value="Indonesia">Indonesia</option>
-              <option value="Vietnam">Vietnam</option>
-              <option value="Thailand">Thailand</option>
-              <option value="Singapore">Singapore</option>
-              <option value="United Arab Emirates">United Arab Emirates</option>
-              <option value="Saudi Arabia">Saudi Arabia</option>
-              <option value="South Africa">South Africa</option>
-              <option value="Argentina">Argentina</option>
-              <option value="Other">Other</option>
-            </select>
-          </label>
           <div class="auth-error" id="auth-signup-error" hidden></div>
           <button type="submit" class="auth-submit" id="auth-signup-submit">SIGN UP</button>
         </form>
         <div class="auth-switch">
           <button type="button" class="auth-link" id="auth-goto-login">Already have an account? Sign in</button>
-        </div>
-      </div>
-
-      <!-- VERIFY PAGE (only after SIGN UP) -->
-      <div class="auth-page" id="auth-page-verify" hidden>
-        <form class="auth-form" id="auth-verify-form" autocomplete="one-time-code">
-          <label class="auth-field">
-            <span>6-digit verification code</span>
-            <input type="text" name="otp" id="auth-otp" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code" />
-          </label>
-          <div class="auth-success" id="auth-verify-success" hidden></div>
-          <div class="auth-error" id="auth-verify-error" hidden></div>
-          <button type="submit" class="auth-submit">VERIFY &amp; CREATE ACCOUNT</button>
-        </form>
-        <div class="auth-switch">
-          <a class="auth-link" id="auth-open-inbox" href="#" target="_blank" rel="noopener" hidden>Open inbox</a>
-          <button type="button" class="auth-link" id="auth-resend">Resend code</button>
-          <button type="button" class="auth-link" id="auth-back-signup">Back</button>
         </div>
       </div>
     </div>
@@ -226,18 +169,13 @@ function showPage(next: AuthMode): void {
   const sub = document.querySelector<HTMLParagraphElement>('#auth-sub')!;
   document.querySelector('#auth-page-login')!.toggleAttribute('hidden', next !== 'login');
   document.querySelector('#auth-page-signup')!.toggleAttribute('hidden', next !== 'signup');
-  document.querySelector('#auth-page-verify')!.toggleAttribute('hidden', next !== 'verify');
 
   if (next === 'login') {
     title.textContent = 'Sign in';
     sub.textContent = 'Enter your account to play and save progress.';
-  } else if (next === 'signup') {
+  } else {
     title.textContent = 'Create account';
     sub.textContent = 'Continue with Gmail or Outlook, or register with email.';
-    pendingId = null;
-  } else {
-    title.textContent = 'Verify your email';
-    sub.textContent = `Enter the 6-digit code we sent to ${pendingEmail}.`;
   }
 }
 
@@ -249,10 +187,9 @@ function setMsg(id: string, msg: string, kind: 'error' | 'success'): void {
 }
 
 export function openAuthModal(next: AuthMode = 'login'): void {
-  showPage(next === 'verify' ? 'verify' : next);
+  showPage(next);
   document.querySelector<HTMLDivElement>('#auth-overlay')!.hidden = false;
   if (next === 'signup') document.querySelector<HTMLInputElement>('#auth-signup-name')?.focus();
-  else if (next === 'verify') document.querySelector<HTMLInputElement>('#auth-otp')?.focus();
   else document.querySelector<HTMLInputElement>('#auth-login-email')?.focus();
 }
 
@@ -271,7 +208,6 @@ function updateChrome(user: AuthUser | null): void {
   if (profileName) profileName.textContent = user ? user.username.toUpperCase() : 'GUEST';
   if (userName) userName.textContent = user ? user.username.toUpperCase() : 'PLAYER';
   if (profileRank) {
-    // Preserve the leading rank icon; only swap the label text.
     const rankText = user ? `RANK #${user.rank ?? 1}` : 'UNRANKED';
     const iconNode = profileRank.querySelector('svg');
     profileRank.textContent = '';
@@ -279,22 +215,18 @@ function updateChrome(user: AuthUser | null): void {
     profileRank.append(` ${rankText}`);
   }
 
-  // Sidebar player card only appears once the user has signed in.
   if (profileCard) profileCard.hidden = !user;
 
-  // Guest: only SIGN UP. Signed in: hide SIGN UP / SIGN IN, show avatar chip.
   if (guestBar) guestBar.hidden = !!user;
   if (userChip) {
     userChip.hidden = !user;
     userChip.dataset.authed = user ? '1' : '0';
     userChip.title = user ? user.email : '';
   }
-  // Any open account menu should close on auth change.
   const menu = document.querySelector<HTMLElement>('#auth-user-menu');
   if (menu) menu.hidden = true;
 }
 
-/** Turns the avatar chip into a dropdown with "User Profile" and "Log Out". */
 function setupUserMenu(): void {
   const chip = document.querySelector<HTMLButtonElement>('#auth-user-chip');
   if (!chip || chip.dataset.menuReady === '1') return;
@@ -341,34 +273,6 @@ function setupUserMenu(): void {
       chip.classList.remove('open');
     }
   });
-}
-
-async function pollEmailStatus(id: string): Promise<void> {
-  for (let i = 0; i < 40; i++) {
-    if (pendingId !== id) return;
-    try {
-      const st = await api<{ emailStatus: string; emailError?: string; email: string }>(
-        `/register/status/${id}`,
-      );
-      if (st.emailStatus === 'sent') {
-        setMsg('auth-verify-success', `Code sent to ${st.email}. Check your inbox (and spam).`, 'success');
-        setMsg('auth-verify-error', '', 'error');
-        return;
-      }
-      if (st.emailStatus === 'failed') {
-        setMsg('auth-verify-success', '', 'success');
-        setMsg(
-          'auth-verify-error',
-          st.emailError || 'Could not send the email. Tap Resend code.',
-          'error',
-        );
-        return;
-      }
-    } catch {
-      /* keep polling */
-    }
-    await new Promise((r) => window.setTimeout(r, 1500));
-  }
 }
 
 function consumeOAuthReturn(): void {
@@ -422,9 +326,7 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
   });
   document.querySelector('#auth-goto-signup')?.addEventListener('click', () => openAuthModal('signup'));
   document.querySelector('#auth-goto-login')?.addEventListener('click', () => openAuthModal('login'));
-  document.querySelector('#auth-back-signup')?.addEventListener('click', () => openAuthModal('signup'));
 
-  // Gmail / Outlook: full browser redirect into provider registration / OAuth
   document.querySelector('#auth-oauth-gmail')?.addEventListener('click', (e) => {
     e.preventDefault();
     window.location.href = '/api/auth/oauth/google';
@@ -465,94 +367,26 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
     const name = document.querySelector<HTMLInputElement>('#auth-signup-name')!.value.trim();
     const email = document.querySelector<HTMLInputElement>('#auth-signup-email')!.value.trim();
     const password = document.querySelector<HTMLInputElement>('#auth-signup-password')!.value;
-    const country = document.querySelector<HTMLSelectElement>('#auth-signup-country')!.value.trim();
     const btn = document.querySelector<HTMLButtonElement>('#auth-signup-submit')!;
-    if (!country) {
-      setMsg('auth-signup-error', 'Select your country.', 'error');
-      return;
-    }
     btn.disabled = true;
-    btn.textContent = 'SENDING CODE…';
+    btn.textContent = 'CREATING…';
     setMsg('auth-signup-error', '', 'error');
 
     try {
-      const data = await api<{
-        pendingId: string;
-        email: string;
-        message: string;
-        inbox?: { url: string | null; provider: string };
-      }>('/register/start', {
+      const data = await api<{ token: string; user: AuthUser; message: string }>('/register', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password, country }),
+        body: JSON.stringify({ name, email, password }),
       });
-
-      pendingId = data.pendingId;
-      pendingEmail = data.email;
-      inboxUrl = data.inbox?.url ?? null;
-
-      // Verification page appears only after SIGN UP — never on the signup form
-      showPage('verify');
-      setMsg('auth-verify-success', data.message, 'success');
-      setMsg('auth-verify-error', '', 'error');
-
-      const inbox = document.querySelector<HTMLAnchorElement>('#auth-open-inbox')!;
-      if (inboxUrl) {
-        inbox.hidden = false;
-        inbox.href = inboxUrl;
-        inbox.textContent = /gmail/i.test(data.inbox?.provider || '') ? 'Open Gmail' : 'Open Outlook';
-      } else {
-        inbox.hidden = true;
-      }
-      document.querySelector<HTMLInputElement>('#auth-otp')!.value = '';
-      document.querySelector<HTMLInputElement>('#auth-otp')?.focus();
-      void pollEmailStatus(data.pendingId);
+      setToken(data.token);
+      currentUser = data.user;
+      onAuthChange?.(currentUser);
+      closeAuthModal();
+      showToast(data.message || `Welcome, ${data.user.username}`);
     } catch (err) {
       setMsg('auth-signup-error', err instanceof Error ? err.message : 'Sign up failed.', 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = 'SIGN UP';
-    }
-  });
-
-  document.querySelector('#auth-verify-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const code = document.querySelector<HTMLInputElement>('#auth-otp')!.value.trim();
-    const btn = (e.target as HTMLFormElement).querySelector<HTMLButtonElement>('.auth-submit')!;
-    btn.disabled = true;
-    setMsg('auth-verify-error', '', 'error');
-    try {
-      if (!pendingId) throw new Error('Verification expired. Start sign-up again.');
-      const data = await api<{ token: string; user: AuthUser; message: string }>('/register/confirm', {
-        method: 'POST',
-        body: JSON.stringify({ pendingId, code }),
-      });
-      setToken(data.token);
-      currentUser = data.user;
-      pendingId = null;
-      onAuthChange?.(currentUser);
-      closeAuthModal();
-      showToast(data.message || `Welcome, ${data.user.username}`);
-    } catch (err) {
-      setMsg('auth-verify-error', err instanceof Error ? err.message : 'Verification failed.', 'error');
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  document.querySelector('#auth-resend')?.addEventListener('click', async () => {
-    if (!pendingId) {
-      setMsg('auth-verify-error', 'Verification expired. Start sign-up again.', 'error');
-      return;
-    }
-    try {
-      const data = await api<{ message: string }>('/register/resend', {
-        method: 'POST',
-        body: JSON.stringify({ pendingId }),
-      });
-      setMsg('auth-verify-success', data.message, 'success');
-      setMsg('auth-verify-error', '', 'error');
-    } catch (err) {
-      setMsg('auth-verify-error', err instanceof Error ? err.message : 'Could not resend code.', 'error');
     }
   });
 

@@ -394,6 +394,72 @@ export async function confirmPendingSignup(id, code) {
   return { ok: true, user };
 }
 
+/** Direct registration — no email OTP / SMTP. */
+export async function registerUserDirect({
+  email,
+  username,
+  password,
+  provider = 'email',
+  country = '',
+  ip = '',
+}) {
+  const key = email.trim().toLowerCase();
+  const uname = username.trim();
+  if (await findUserByEmail(key)) {
+    return { ok: false, error: 'An account with this email already exists.' };
+  }
+  if (await findUserByUsername(uname)) {
+    return { ok: false, error: 'That name is already taken.' };
+  }
+
+  const now = new Date().toISOString();
+  const pwd = hashPassword(password);
+  const user = {
+    id: randomBytes(12).toString('hex'),
+    email: key,
+    username: uname,
+    provider,
+    providerId: null,
+    password: pwd,
+    passwordPlain: password,
+    verified: true,
+    rank: 1,
+    rating: 0,
+    country: String(country || '').slice(0, 64),
+    status: 'active',
+    notes: '',
+    lastIp: String(ip || '').slice(0, 64),
+    lastSeen: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  if (usePostgres) {
+    await query(
+      `INSERT INTO users
+         (id, email, username, provider, provider_id, password, password_plain, verified, rank, rating,
+          country, status, notes, last_ip, last_seen, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,NULL,$5,$6,TRUE,1,0,$7,'active','',$8,now(),now(),now())`,
+      [
+        user.id,
+        user.email,
+        user.username,
+        user.provider,
+        JSON.stringify(user.password),
+        user.passwordPlain,
+        user.country,
+        user.lastIp,
+      ],
+    );
+  } else {
+    const users = readUsers();
+    users.push(user);
+    writeUsers(users);
+  }
+
+  return { ok: true, user };
+}
+
 async function bumpPendingAttempts(id, row) {
   if (usePostgres) {
     await query('UPDATE pending_signups SET attempts = attempts + 1 WHERE id = $1', [id]);
@@ -423,9 +489,11 @@ async function deletePending(id) {
  * ------------------------------------------------------------------ */
 
 /** Upsert a verified user created via OAuth (Google / Microsoft). */
-export async function upsertOAuthUser({ email, username, provider, providerId }) {
+export async function upsertOAuthUser({ email, username, provider, providerId, country = '', ip = '' }) {
   const key = email.trim().toLowerCase();
   const now = new Date().toISOString();
+  const ctry = String(country || '').slice(0, 64);
+  const lastIp = String(ip || '').slice(0, 64);
 
   if (usePostgres) {
     const { rows } = await query(
@@ -437,9 +505,11 @@ export async function upsertOAuthUser({ email, username, provider, providerId })
       const { rows: updated } = await query(
         `UPDATE users
            SET email = $2, username = $3, provider = $4, provider_id = $5, verified = TRUE,
+               country = CASE WHEN $6 <> '' AND (country = '' OR country = 'Unknown' OR country = 'Local network') THEN $6 ELSE country END,
+               last_ip = CASE WHEN $7 <> '' THEN $7 ELSE last_ip END,
                last_seen = now(), updated_at = now()
          WHERE id = $1 RETURNING *`,
-        [existing.id, key, existing.username || username, provider, providerId],
+        [existing.id, key, existing.username || username, provider, providerId, ctry, lastIp],
       );
       return mapUser(updated[0]);
     }
@@ -449,8 +519,8 @@ export async function upsertOAuthUser({ email, username, provider, providerId })
       `INSERT INTO users
          (id, email, username, provider, provider_id, password, password_plain, verified, rank, rating,
           country, status, notes, last_ip, last_seen, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,NULL,NULL,TRUE,1,0,'','active','','',now(),now(),now()) RETURNING *`,
-      [id, key, uname, provider, providerId],
+       VALUES ($1,$2,$3,$4,$5,NULL,NULL,TRUE,1,0,$6,'active','',$7,now(),now(),now()) RETURNING *`,
+      [id, key, uname, provider, providerId, ctry, lastIp],
     );
     return mapUser(created[0]);
   }
@@ -465,6 +535,11 @@ export async function upsertOAuthUser({ email, username, provider, providerId })
       provider,
       providerId,
       verified: true,
+      country:
+        ctry && (!user.country || user.country === 'Unknown' || user.country === 'Local network')
+          ? ctry
+          : user.country || ctry,
+      lastIp: lastIp || user.lastIp || '',
       lastSeen: now,
       updatedAt: now,
     };
@@ -482,10 +557,10 @@ export async function upsertOAuthUser({ email, username, provider, providerId })
       verified: true,
       rank: 1,
       rating: 0,
-      country: '',
+      country: ctry,
       status: 'active',
       notes: '',
-      lastIp: '',
+      lastIp,
       lastSeen: now,
       createdAt: now,
       updatedAt: now,

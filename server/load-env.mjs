@@ -92,17 +92,9 @@ export function logEnvStatus() {
   const missingRec = recommended.filter((k) => !hasEnv(k));
 
   if (missingMail.length) {
-    console.error('[env] Missing SMTP credentials required for user registration:');
-    for (const k of missingMail) console.error(`       - ${k}`);
-    if (onRender) {
-      console.error('[env] Fix: Render Dashboard → your web service → Environment');
-      console.error('[env]      Add SMTP_USER and SMTP_PASS, then Save and deploy.');
-      console.error('[env]      Tip: use “Add from .env” to paste your local .env contents.');
-    } else {
-      console.error('[env] Fix: copy .env.example to .env and set SMTP_USER / SMTP_PASS.');
-    }
+    console.warn('[env] SMTP_USER / SMTP_PASS not set (optional — email OTP is disabled; direct signup is used).');
   } else {
-    console.log('[env] SMTP credentials present');
+    console.log('[env] SMTP credentials present (optional)');
   }
 
   if (missingRec.length) {

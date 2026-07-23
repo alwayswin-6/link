@@ -2,12 +2,41 @@
 .dash-page {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 28px var(--page-x, 48px) 88px;
+  width: 100%;
+  max-width: var(--content-max, 1720px);
+  margin: 0 auto;
+  padding: 32px var(--page-x, 40px) 88px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 28px;
   animation: pageIn 0.28s ease;
 }
+
+.match-win { color: #86EFAC; font-weight: 700; }
+.match-loss { color: #FCA5A5; font-weight: 700; }
+
+.inv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 160px;
+}
+
+.inv-rarity {
+  align-self: flex-start;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font: 700 11px/22px Manrope, sans-serif;
+  background: rgba(59, 130, 246, 0.14);
+  color: #93C5FD;
+}
+
+.inv-rarity.legendary { background: rgba(251, 191, 36, 0.14); color: #FDE68A; }
+.inv-rarity.epic { background: rgba(139, 92, 246, 0.14); color: #C4B5FD; }
+.inv-rarity.rare { background: rgba(34, 211, 238, 0.14); color: #67E8F9; }
+.inv-rarity.common { background: rgba(148, 163, 184, 0.14); color: #CBD5E1; }
+.inv-rarity.premium { background: rgba(244, 114, 182, 0.14); color: #F9A8D4; }
 
 .dash-page[hidden] {
   display: none !important;
@@ -76,9 +105,11 @@
 }
 
 .page-card {
-  border-radius: 14px;
+  border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #111113;
+  background: rgba(22, 24, 31, 0.72);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
   padding: 22px;
 }
 

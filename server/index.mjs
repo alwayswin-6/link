@@ -31,8 +31,7 @@ if (isSmtpConfigured()) {
     mailer = null;
   }
 } else {
-  console.error('[smtp] Mailer disabled until SMTP_USER / SMTP_PASS are set.');
-  console.error('[smtp] User registration (OTP email) will fail until then.');
+  console.log('[smtp] Mailer not configured — direct registration does not require SMTP.');
 }
 
 const app = express();

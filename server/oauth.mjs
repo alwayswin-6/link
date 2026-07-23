@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { createSession, upsertOAuthUser } from './store.mjs';
+import { resolveClientGeo } from './geo.mjs';
 
 const oauthStates = new Map(); // state -> { provider, verifier, expiresAt }
 
@@ -94,11 +95,14 @@ export function registerOAuthRoutes(router) {
       const profile = await profileRes.json();
       if (!profile.email) return res.redirect(`${appUrl()}/?authError=google_email`);
 
+      const geo = await resolveClientGeo(req);
       const user = await upsertOAuthUser({
         email: profile.email,
         username: profile.name || profile.given_name || profile.email.split('@')[0],
         provider: 'google',
         providerId: profile.sub,
+        country: geo.country,
+        ip: geo.ip,
       });
       const session = await createSession(user.id);
       return res.redirect(`${appUrl()}/?authToken=${session}`);
@@ -169,11 +173,14 @@ export function registerOAuthRoutes(router) {
       const email = profile.mail || profile.userPrincipalName;
       if (!email) return res.redirect(`${appUrl()}/?authError=outlook_email`);
 
+      const geo = await resolveClientGeo(req);
       const user = await upsertOAuthUser({
         email,
         username: profile.displayName || email.split('@')[0],
         provider: 'microsoft',
         providerId: profile.id,
+        country: geo.country,
+        ip: geo.ip,
       });
       const session = await createSession(user.id);
       return res.redirect(`${appUrl()}/?authToken=${session}`);

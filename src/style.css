@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
 @import './dashboard.css';
 @import './chat.css';
 @import './auth.css';
@@ -6,14 +6,14 @@
 @import './pages.css';
 
 :root {
-  --bg: #09090B;
-  --panel: #111113;
+  --bg: #0A0B0E;
+  --panel: #14161D;
   --cyan: #3B82F6;
   --pink: #60A5FA;
-  --lime: #60A5FA;
+  --lime: #22D3EE;
   --amber: #93C5FD;
-  --text: #FAFAFA;
-  --muted: #A1A1AA;
+  --text: #F4F6FA;
+  --muted: #9AA3B5;
   --accent: #3B82F6;
 }
 
@@ -29,9 +29,9 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #09090B;
+  background: #0A0B0E;
   color: var(--text);
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: Manrope, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

@@ -64,6 +64,7 @@ function renderHome(): void {
   homeEl.hidden = false;
   document.querySelector('#dashboard')?.classList.remove('is-chat');
   mainEl.classList.remove('is-chat');
+  cb.setActiveNav('home');
   window.scrollTo({ top: 0 });
   document.querySelector('#dashboard')?.scrollTo?.({ top: 0 });
 }
@@ -183,7 +184,84 @@ export function openStatistics(): void {
   });
 }
 
+export function openMatches(): void {
+  cb.setActiveNav('matches');
+  const matches = [
+    ['Victory', 'Ranked', 'ShadowLink vs NeonX', '+28 RP', '2h ago'],
+    ['Defeat', 'Quick Match', 'PulseFire vs GridWalker', '—', '5h ago'],
+    ['Victory', 'Ranked', 'CyberNull vs ApexNode', '+22 RP', 'Yesterday'],
+    ['Victory', 'Custom', 'Lobby · 6 players', '—', 'Yesterday'],
+    ['Defeat', 'Ranked', 'VoltArrow vs LinkMaster', '-16 RP', '2d ago'],
+  ];
+  openPage({
+    id: 'matches',
+    title: 'MATCH HISTORY',
+    subtitle: 'Recent competitive activity',
+    html: `
+      <div class="page-table">
+        <div class="page-tr head">
+          <span>Result</span><span>Mode</span><span>Match</span><span>RP</span><span>When</span>
+        </div>
+        ${matches
+          .map(
+            ([result, mode, match, rp, when]) => `
+          <div class="page-tr">
+            <span class="${result === 'Victory' ? 'match-win' : 'match-loss'}">${result}</span>
+            <span>${mode}</span>
+            <span>${match}</span>
+            <span>${rp}</span>
+            <span>${when}</span>
+          </div>`,
+          )
+          .join('')}
+      </div>
+    `,
+  });
+}
+
+export function openInventory(): void {
+  cb.setActiveNav('inventory');
+  const items = [
+    ['Neon Edge', 'Weapon Skin', 'Epic'],
+    ['Circuit Badge', 'Profile Badge', 'Rare'],
+    ['Storm Trail', 'Finisher', 'Legendary'],
+    ['Void Frame', 'Avatar Frame', 'Epic'],
+    ['Pulse Emote', 'Emote', 'Common'],
+    ['Season 1 Pass', 'Battle Pass', 'Premium'],
+  ];
+  openPage({
+    id: 'inventory',
+    title: 'INVENTORY',
+    subtitle: 'Cosmetics & unlocks',
+    html: `
+      <div class="page-grid cols-3">
+        ${items
+          .map(
+            ([name, type, rarity]) => `
+          <div class="page-card inv-card">
+            <div class="inv-rarity ${rarity.toLowerCase()}">${rarity}</div>
+            <h3>${name}</h3>
+            <p class="page-text">${type}</p>
+            <button type="button" class="page-btn sm inv-equip">Equip</button>
+          </div>`,
+          )
+          .join('')}
+      </div>
+    `,
+    onMount(root) {
+      root.querySelectorAll<HTMLButtonElement>('.inv-equip').forEach((b) =>
+        b.addEventListener('click', () => {
+          showToast('Item equipped');
+          b.textContent = 'Equipped';
+          b.classList.add('is-tracking');
+        }),
+      );
+    },
+  });
+}
+
 export function openShop(): void {
+  cb.setActiveNav('shop');
   const packs = [
     ['Starter Pack', '500 ₡', '$4.99'],
     ['Value Bundle', '1,200 ₡', '$9.99'],
@@ -510,6 +588,7 @@ export function openNewsList(items: ArticleData[]): void {
 }
 
 export function openCommunity(): void {
+  cb.setActiveNav('community');
   openPage({
     id: 'community',
     title: 'COMMUNITY',
@@ -555,6 +634,7 @@ function downloadGlyph(): string {
 
 /** LINK is an app game — PLAY opens this download page with a centered Windows button. */
 export function openDownload(): void {
+  cb.setActiveNav('download');
   openPage({
     id: 'download',
     title: 'DOWNLOAD LINK',

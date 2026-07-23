@@ -9,10 +9,7 @@ import {
   openMissions,
   openNewsList,
   openPlayer,
-  openProfile,
   openRanking,
-  openShop,
-  openStatistics,
 } from './pages';
 
 export type InteractionCallbacks = {
@@ -35,25 +32,6 @@ export function initInteractions(cb: InteractionCallbacks): void {
   const dash = document.querySelector('#dashboard');
   if (!dash) return;
 
-  // ——— Sidebar profile ———
-  dash.querySelector('.dash-profile-btn.primary')?.addEventListener('click', () => openProfile());
-  dash.querySelector('.dash-profile-btn.ghost')?.addEventListener('click', () => openStatistics());
-
-  const socialUrls: Record<string, string> = {
-    Discord: 'https://discord.com/',
-    Twitter: 'https://x.com/',
-    YouTube: 'https://youtube.com/',
-    Twitch: 'https://twitch.tv/',
-  };
-  dash.querySelectorAll<HTMLButtonElement>('.dash-social').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const label = btn.getAttribute('aria-label') || 'Social';
-      const url = socialUrls[label];
-      if (url) window.open(url, '_blank', 'noopener,noreferrer');
-      showToast(`Opening ${label}…`);
-    });
-  });
-
   // ——— Topbar ———
   const topRight = dash.querySelector('.dash-topbar-right');
   topRight?.querySelectorAll<HTMLButtonElement>('.dash-icon-btn').forEach((btn) => {
@@ -69,14 +47,20 @@ export function initInteractions(cb: InteractionCallbacks): void {
     }
   });
 
-  dash.querySelector('.dash-currency-plus')?.addEventListener('click', () => openShop());
-  dash.querySelector('.dash-currency')?.addEventListener('click', (e) => {
-    if ((e.target as HTMLElement).closest('.dash-currency-plus')) return;
-    openShop();
+  dash.querySelector('#dash-search')?.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key !== 'Enter') return;
+    const q = (e.target as HTMLInputElement).value.trim();
+    if (q) showToast(`Searching “${q}”…`);
   });
 
   // ——— Hero ———
-  dash.querySelector('.dash-btn-how')?.addEventListener('click', () => openHowToPlay());
+  dash.querySelector('.dash-btn-ghost')?.addEventListener('click', () => openHowToPlay());
+  dash.querySelector('#join-team-btn')?.addEventListener('click', () => {
+    showToast('Team applications open soon');
+  });
+  dash.querySelectorAll<HTMLButtonElement>('.team-view-btn').forEach((btn) => {
+    btn.addEventListener('click', () => showToast('Opening team profile…'));
+  });
 
   // ——— Game modes → LINK is an app game, so all launch buttons open the download window ———
   dash.querySelector('#mode-ranked')?.addEventListener('click', () => openDownload());
@@ -93,18 +77,11 @@ export function initInteractions(cb: InteractionCallbacks): void {
       }
       const head = a.closest('.dash-section-head')?.querySelector('h2')?.textContent?.trim() || '';
       if (/MISSION/i.test(head)) openMissions();
-      else if (/EVENT/i.test(head)) openEvent();
+      else if (/EVENT|Featured/i.test(head)) openEvent();
       else if (/NEWS/i.test(head)) openNewsList(collectArticles(dash));
-      else if (/MODE/i.test(head)) openDownload();
+      else if (/MODE|Play/i.test(head)) openDownload();
+      else if (/Community/i.test(head)) openCommunity();
       else openMissions();
-    });
-  });
-
-  // ——— Missions (home cards) ———
-  dash.querySelectorAll<HTMLButtonElement>('.msn-track').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openMissions();
     });
   });
 

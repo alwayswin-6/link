@@ -155,7 +155,7 @@
 
 .link-notify {
   position: fixed;
-  top: 72px;
+  top: 92px;
   right: 24px;
   z-index: 11500;
   width: min(340px, calc(100vw - 32px));

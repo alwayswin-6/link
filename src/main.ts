@@ -13,6 +13,9 @@ import {
   openMissions,
   openCommunity,
   openHowToPlay,
+  openShop,
+  openMatches,
+  openInventory,
   hidePageView,
 } from './pages';
 import { showToast } from './ui';
@@ -49,7 +52,7 @@ function showHome(): void {
 }
 
 function setActiveNav(nav: string): void {
-  dashboard.querySelectorAll('.dash-nav-item, .dash-mobile-item').forEach((n) => {
+  dashboard.querySelectorAll('.dash-nav-item').forEach((n) => {
     n.classList.toggle('active', (n as HTMLElement).dataset.nav === nav);
   });
 }
@@ -58,8 +61,8 @@ function handleNav(nav: string | undefined, e?: Event): void {
   if (!nav) return;
   e?.preventDefault();
 
-  if (nav === 'play') {
-    setActiveNav('play');
+  if (nav === 'play' || nav === 'download') {
+    setActiveNav('download');
     openDownload();
     return;
   }
@@ -78,6 +81,11 @@ function handleNav(nav: string | undefined, e?: Event): void {
     return;
   }
 
+  if (nav === 'matches') {
+    openMatches();
+    return;
+  }
+
   if (nav === 'missions') {
     openMissions();
     return;
@@ -85,6 +93,16 @@ function handleNav(nav: string | undefined, e?: Event): void {
 
   if (nav === 'community') {
     openCommunity();
+    return;
+  }
+
+  if (nav === 'inventory') {
+    openInventory();
+    return;
+  }
+
+  if (nav === 'shop') {
+    openShop();
     return;
   }
 
@@ -117,23 +135,22 @@ function handleNav(nav: string | undefined, e?: Event): void {
 // LINK is a downloadable app game — PLAY entry points open the download window.
 playNowBtn.addEventListener('click', () => openDownload());
 modeQuick.addEventListener('click', () => openDownload());
-navPlay.addEventListener('click', (e) => handleNav('play', e));
+document.querySelector('#quick-play-btn')?.addEventListener('click', () => openDownload());
+navPlay.addEventListener('click', (e) => handleNav('download', e));
 
 topbarChat.addEventListener('click', () => {
   setActiveNav('chat');
   showChat();
 });
 
-// Account chip → "User Profile" opens the profile page.
 document.addEventListener('link:open-profile', () => {
   setActiveNav('profile');
   openProfile();
 });
 
-// Sidebar + mobile navigation
-dashboard.querySelectorAll('.dash-nav-item, .dash-mobile-item').forEach((el) => {
+dashboard.querySelectorAll('.dash-nav-item').forEach((el) => {
   el.addEventListener('click', (e) => {
-    if (el.id === 'nav-play') return; // dedicated handler above
+    if (el.id === 'nav-play') return;
     handleNav((el as HTMLElement).dataset.nav, e);
   });
 });

@@ -86,17 +86,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 48px;
+  height: 40px;
   border: 0;
   border-radius: 12px;
-  padding: 0 22px;
-  font: 700 13px/1 Inter, system-ui, sans-serif;
+  padding: 0 18px;
+  font: 700 13px/1 Manrope, system-ui, sans-serif;
   letter-spacing: -0.01em;
   cursor: pointer;
-  color: #fff;
-  background: #3B82F6;
-  transition: filter 0.15s ease, transform 0.15s ease;
+  color: #041018;
+  background: linear-gradient(135deg, #22D3EE 0%, #3B82F6 55%, #6366F1 100%);
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
   box-sizing: border-box;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.28);
 }
 
 .auth-top-btn:hover {
