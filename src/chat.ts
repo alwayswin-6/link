@@ -231,18 +231,13 @@ export function chatRoomHTML(): string {
       <footer class="chat-composer">
         <button type="button" class="chat-tool" id="chat-emoji" title="Emoji">${icons.emoji()}</button>
         <button type="button" class="chat-tool" id="chat-image" title="Send image">${icons.image()}</button>
-        <button type="button" class="chat-tool chat-mic" id="chat-voice-msg" title="Hold to record voice message">${icons.mic()}</button>
+        <button type="button" class="chat-tool chat-mic" id="chat-voice-msg" title="Record voice message">${icons.mic()}</button>
         <input type="file" id="chat-image-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
         <div class="chat-input-wrap">
           <textarea id="chat-input" rows="1" placeholder="Message…" aria-label="Message input"></textarea>
         </div>
         <button type="button" class="chat-send" id="chat-send" title="Send" aria-label="Send">${icons.send()}</button>
       </footer>
-      <div class="chat-rec-bar" id="chat-rec-bar" hidden>
-        <span class="chat-rec-dot" aria-hidden="true"></span>
-        <span id="chat-rec-label">Recording…</span>
-        <button type="button" class="chat-tool" id="chat-rec-cancel">Cancel</button>
-      </div>
       <div class="chat-emoji-panel" id="chat-emoji-panel" hidden>
         ${EMOJIS.map((e) => `<button type="button" class="chat-emoji-btn" data-emoji="${e}">${e}</button>`).join('')}
       </div>
@@ -347,6 +342,8 @@ export class ChatApp {
   private recordChunks: Blob[] = [];
   private recordStarted = 0;
   private recordTimer = 0;
+  private voiceRecording = false;
+  private pendingVoice: { blob: Blob; durationMs: number; mime: string } | null = null;
   private voice = new VoiceRoom(
     (obj) => this.send(obj),
     () => {
@@ -550,6 +547,13 @@ export class ChatApp {
           if (dir) this.names.set(mid, dir.username);
         }
       }
+      if (data.group.createdBy && !this.names.has(data.group.createdBy)) {
+        const dir = this.directory.get(data.group.createdBy);
+        if (dir) this.names.set(data.group.createdBy, dir.username);
+        else if (data.group.createdBy === this.me?.id && this.me) {
+          this.names.set(data.group.createdBy, this.me.username);
+        }
+      }
       this.renderList();
       this.renderInfo();
       if (data.group.createdBy === this.me?.id) {
@@ -678,16 +682,10 @@ export class ChatApp {
     });
 
     const mic = this.el('#chat-voice-msg');
-    mic.addEventListener('pointerdown', (e) => {
+    mic.addEventListener('click', (e) => {
       e.preventDefault();
-      void this.startVoiceRecord();
+      void this.toggleVoiceMessage();
     });
-    const stopRec = () => void this.stopVoiceRecord(true);
-    mic.addEventListener('pointerup', stopRec);
-    mic.addEventListener('pointerleave', () => {
-      if (this.mediaRecorder?.state === 'recording') void this.stopVoiceRecord(true);
-    });
-    this.el('#chat-rec-cancel').addEventListener('click', () => void this.stopVoiceRecord(false));
 
     this.el('#chat-info-close').addEventListener('click', () => this.toggleInfo(false));
     this.root.addEventListener('click', (e) => {
@@ -697,6 +695,7 @@ export class ChatApp {
       if (t.closest('#chat-voice-mute')) this.voice.toggleMute();
       if (t.closest('#chat-voice-deafen')) this.voice.toggleDeafen();
       if (t.closest('#chat-voice-leave')) void this.voice.leave();
+      if (t.closest('#chat-voice-cancel')) this.cancelPendingVoice();
       if (!t.closest('#chat-emoji') && !t.closest('#chat-emoji-panel')) this.el('#chat-emoji-panel').hidden = true;
     });
 
@@ -724,6 +723,10 @@ export class ChatApp {
   private async toggleVoice(): Promise<void> {
     if (!this.me) {
       openAuthModal('signup');
+      return;
+    }
+    if (this.activeId === GLOBAL || isGroupId(this.activeId)) {
+      showToast('Voice is only available in 1:1 chats');
       return;
     }
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -881,6 +884,9 @@ export class ChatApp {
     this.root.classList.add('thread-open');
     this.root.classList.remove('list-open');
     this.clearTyping(id);
+    if (id === GLOBAL || isGroupId(id)) {
+      if (this.voice.connected) void this.voice.leave();
+    }
     if (isGroupId(id) && !this.groups.has(id)) {
       this.send({ type: 'join_group', id });
     } else if (id !== GLOBAL && !this.loadedHistory.has(id)) {
@@ -905,6 +911,14 @@ export class ChatApp {
   }
 
   private submit(): void {
+    if (this.voiceRecording) {
+      showToast('Stop recording first, then press Send');
+      return;
+    }
+    if (this.pendingVoice) {
+      void this.sendPendingVoice();
+      return;
+    }
     const input = this.el<HTMLTextAreaElement>('#chat-input');
     const text = input.value.trim();
     if (!text) return;
@@ -967,10 +981,25 @@ export class ChatApp {
     }
   }
 
+  private async toggleVoiceMessage(): Promise<void> {
+    if (this.voiceRecording) {
+      await this.finishVoiceRecord();
+      return;
+    }
+    if (this.pendingVoice) {
+      showToast('Voice ready — press Send, or Cancel in the chat');
+      return;
+    }
+    await this.startVoiceRecord();
+  }
+
   private async startVoiceRecord(): Promise<void> {
-    if (this.mediaRecorder?.state === 'recording') return;
     if (!navigator.mediaDevices?.getUserMedia) {
       showToast('Voice recording is not supported in this browser');
+      return;
+    }
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      showToast('Reconnecting… try again in a moment.');
       return;
     }
     try {
@@ -981,33 +1010,36 @@ export class ChatApp {
           ? 'audio/webm'
           : '';
       this.recordChunks = [];
+      this.pendingVoice = null;
       this.mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       this.mediaRecorder.ondataavailable = (e) => {
         if (e.data.size) this.recordChunks.push(e.data);
       };
       this.mediaRecorder.start(200);
       this.recordStarted = Date.now();
-      const bar = this.el('#chat-rec-bar');
-      bar.hidden = false;
+      this.voiceRecording = true;
       this.el('#chat-voice-msg').classList.add('is-recording');
+      this.el('#chat-voice-msg').title = 'Stop recording';
+      this.renderMessages();
       window.clearInterval(this.recordTimer);
       this.recordTimer = window.setInterval(() => {
-        const ms = Date.now() - this.recordStarted;
-        this.el('#chat-rec-label').textContent = `Recording… ${fmtDuration(ms)}`;
-        if (ms > 120_000) void this.stopVoiceRecord(true);
+        if (Date.now() - this.recordStarted > 120_000) void this.finishVoiceRecord();
+        else this.updateVoiceProgressLabel();
       }, 250);
     } catch {
       showToast('Microphone permission denied');
     }
   }
 
-  private async stopVoiceRecord(sendClip: boolean): Promise<void> {
+  private async finishVoiceRecord(): Promise<void> {
     const rec = this.mediaRecorder;
     window.clearInterval(this.recordTimer);
-    this.el('#chat-rec-bar').hidden = true;
+    this.voiceRecording = false;
     this.el('#chat-voice-msg').classList.remove('is-recording');
+    this.el('#chat-voice-msg').title = 'Record voice message';
     if (!rec || rec.state === 'inactive') {
       this.mediaRecorder = null;
+      this.renderMessages();
       return;
     }
     const durationMs = Date.now() - this.recordStarted;
@@ -1017,29 +1049,114 @@ export class ChatApp {
       rec.stream.getTracks().forEach((t) => t.stop());
     });
     this.mediaRecorder = null;
-    if (!sendClip || durationMs < 400) {
+    if (durationMs < 400 || this.recordChunks.length === 0) {
       this.recordChunks = [];
+      this.pendingVoice = null;
+      showToast('Recording too short');
+      this.renderMessages();
       return;
     }
     const blob = new Blob(this.recordChunks, { type: rec.mimeType || 'audio/webm' });
     this.recordChunks = [];
     if (blob.size > 8 * 1024 * 1024) {
+      this.pendingVoice = null;
       showToast('Voice message too large');
+      this.renderMessages();
       return;
     }
+    this.pendingVoice = { blob, durationMs, mime: blob.type || 'audio/webm' };
+    this.renderMessages();
+    showToast('Voice ready — press Send');
+  }
+
+  private cancelPendingVoice(): void {
+    if (this.voiceRecording) {
+      void this.abortVoiceRecord();
+      return;
+    }
+    this.pendingVoice = null;
+    this.renderMessages();
+  }
+
+  private async abortVoiceRecord(): Promise<void> {
+    const rec = this.mediaRecorder;
+    window.clearInterval(this.recordTimer);
+    this.voiceRecording = false;
+    this.pendingVoice = null;
+    this.recordChunks = [];
+    this.el('#chat-voice-msg').classList.remove('is-recording');
+    this.el('#chat-voice-msg').title = 'Record voice message';
+    if (rec && rec.state !== 'inactive') {
+      await new Promise<void>((resolve) => {
+        rec.onstop = () => resolve();
+        rec.stop();
+        rec.stream.getTracks().forEach((t) => t.stop());
+      });
+    }
+    this.mediaRecorder = null;
+    this.renderMessages();
+  }
+
+  private async sendPendingVoice(): Promise<void> {
+    const pending = this.pendingVoice;
+    if (!pending) return;
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       showToast('Reconnecting… try again in a moment.');
       return;
     }
+    this.pendingVoice = null;
+    this.renderMessages();
     try {
-      const url = await this.uploadMedia(blob, 'audio');
+      const url = await this.uploadMedia(pending.blob, 'audio');
       const clientId = newClientId();
       const ts = Date.now();
-      this.pushOptimistic({ id: clientId, clientId, text: '', audioUrl: url, durationMs, ts });
-      this.send({ type: 'message', to: this.activeId, text: '', audioUrl: url, durationMs, clientId });
+      this.pushOptimistic({
+        id: clientId,
+        clientId,
+        text: '',
+        audioUrl: url,
+        durationMs: pending.durationMs,
+        ts,
+      });
+      this.send({
+        type: 'message',
+        to: this.activeId,
+        text: '',
+        audioUrl: url,
+        durationMs: pending.durationMs,
+        clientId,
+      });
+      showToast('Voice message sent');
     } catch (err) {
+      this.pendingVoice = pending;
+      this.renderMessages();
       showToast(err instanceof Error ? err.message : 'Could not send voice message');
     }
+  }
+
+  private updateVoiceProgressLabel(): void {
+    const label = this.el('#chat-messages')?.querySelector('#chat-voice-progress-label');
+    if (!label) return;
+    const ms = Date.now() - this.recordStarted;
+    label.textContent = `Voice in progress… ${fmtDuration(ms)}`;
+  }
+
+  private voiceProgressHtml(): string {
+    if (this.voiceRecording) {
+      const ms = Date.now() - this.recordStarted;
+      return `<div class="chat-voice-progress" id="chat-voice-progress">
+        <span class="chat-rec-dot" aria-hidden="true"></span>
+        <span id="chat-voice-progress-label">Voice in progress… ${fmtDuration(ms)}</span>
+        <button type="button" id="chat-voice-cancel">Cancel</button>
+      </div>`;
+    }
+    if (this.pendingVoice) {
+      return `<div class="chat-voice-progress is-ready" id="chat-voice-progress">
+        <span>Voice ready · ${fmtDuration(this.pendingVoice.durationMs)} — press Send</span>
+        <button type="button" id="chat-voice-cancel">Cancel</button>
+      </div>`;
+    }
+    return '';
   }
 
   private toggleInfo(force?: boolean): void {
@@ -1213,6 +1330,12 @@ export class ChatApp {
     const c = this.activeMeta();
     const ava = this.avatars.get(this.activeId) || '';
     const inVoice = this.voice.connected;
+    const voiceAllowed = c.kind === 'dm';
+    const voiceTitle = !voiceAllowed
+      ? 'Voice only available in 1:1 chats'
+      : inVoice
+        ? 'Leave voice'
+        : 'Join voice';
     this.el('#chat-thread-head').innerHTML = `
       <div class="chat-thread-user">
         <button type="button" class="chat-back-mobile" id="chat-back-list" aria-label="Back to conversations">←</button>
@@ -1222,13 +1345,13 @@ export class ChatApp {
         </span>
         <div>
           <div class="chat-thread-name">${escapeHtml(c.name)}</div>
-          <div class="chat-thread-status">${escapeHtml(inVoice ? 'In voice channel' : c.status)}</div>
+          <div class="chat-thread-status">${escapeHtml(inVoice && voiceAllowed ? 'In voice channel' : c.status)}</div>
         </div>
       </div>
       <div class="chat-thread-actions">
-        <button type="button" class="chat-voice-btn${inVoice ? ' is-live' : ''}" id="chat-voice-call" title="${inVoice ? 'Leave voice' : 'Join voice'}">
+        <button type="button" class="chat-voice-btn${inVoice && voiceAllowed ? ' is-live' : ''}${voiceAllowed ? '' : ' is-disabled'}" id="chat-voice-call" title="${voiceTitle}" ${voiceAllowed ? '' : 'disabled aria-disabled="true"'}>
           ${icons.voice()}
-          <span>${inVoice ? 'Leave' : 'Voice'}</span>
+          <span>${inVoice && voiceAllowed ? 'Leave' : 'Voice'}</span>
         </button>
         <button type="button" class="chat-tool" id="chat-info-toggle" title="Details">${icons.info()}</button>
       </div>
@@ -1284,8 +1407,15 @@ export class ChatApp {
           </article>`);
       }
     }
+    const progress = this.voiceProgressHtml();
+    if (progress) parts.push(progress);
     box.innerHTML = parts.join('');
     box.scrollTop = box.scrollHeight;
+  }
+
+  private memberRow(id: string, live: boolean): string {
+    const name = this.names.get(id) ?? 'Player';
+    return `<li class="${live ? 'is-online' : 'is-offline'}"><span class="chat-conv-avatar sm">${avatarHtml(name, '', this.avatars.get(id) || '')}${statusDot(live)}</span> ${escapeHtml(name)} <span>${id === this.me?.id ? 'You' : live ? 'Online' : 'Offline'}</span></li>`;
   }
 
   private renderInfo(): void {
@@ -1293,12 +1423,9 @@ export class ChatApp {
     const c = this.activeMeta();
     const ava = this.avatars.get(this.activeId) || '';
     if (this.activeId === GLOBAL) {
-      const members = [...this.online.entries()]
-        .map(
-          ([id, name]) =>
-            `<li><span class="chat-conv-avatar sm">${avatarHtml(name, '', this.avatars.get(id) || '')}${statusDot(true)}</span> ${escapeHtml(name)} <span>${id === this.me?.id ? 'You' : 'Online'}</span></li>`,
-        )
-        .join('');
+      const onlineIds = [...this.online.keys()];
+      const offline = [...this.directory.values()].filter((u) => !this.online.has(u.id));
+      for (const u of offline) this.names.set(u.id, u.username);
       this.el('#chat-info-body').innerHTML = `
         <div class="chat-info-profile">
           <span class="chat-conv-avatar xl-wrap">${avatarHtml(c.name, 'xl')}${statusDot(true)}</span>
@@ -1306,27 +1433,42 @@ export class ChatApp {
           <p>${escapeHtml(c.status)}</p>
         </div>
         <div class="chat-members">
-          <h5>${icons.users()} Online now · ${this.online.size}</h5>
-          <ul>${members || '<li>No one else is online</li>'}</ul>
+          <div class="chat-members-block">
+            <h5>${icons.users()} Online now · ${onlineIds.length}</h5>
+            <ul>${onlineIds.map((id) => this.memberRow(id, true)).join('') || '<li>No one is online</li>'}</ul>
+          </div>
+          <div class="chat-members-block">
+            <h5>Offline now · ${offline.length}</h5>
+            <ul>${offline.map((u) => this.memberRow(u.id, false)).join('') || '<li>No offline players</li>'}</ul>
+          </div>
         </div>`;
     } else if (isGroupId(this.activeId)) {
       const g = this.groups.get(this.activeId);
-      const members = (g?.members ?? [])
-        .map((id) => {
-          const name = this.names.get(id) ?? 'Player';
-          const live = this.online.has(id);
-          return `<li><span class="chat-conv-avatar sm">${avatarHtml(name, '', this.avatars.get(id) || '')}${statusDot(live)}</span> ${escapeHtml(name)} <span>${live ? 'Online' : 'Offline'}</span></li>`;
-        })
-        .join('');
+      const members = g?.members ?? [];
+      const creatorId = g?.createdBy || '';
+      const creatorName = creatorId ? this.names.get(creatorId) || 'Player' : '';
+      const onlineIds = members.filter((id) => this.online.has(id));
+      const offlineIds = members.filter((id) => !this.online.has(id));
       this.el('#chat-info-body').innerHTML = `
         <div class="chat-info-profile">
           <span class="chat-conv-avatar xl-wrap">${avatarHtml(c.name, 'xl')}${statusDot(c.online)}</span>
           <h4>${escapeHtml(c.name)}</h4>
           <p>${escapeHtml(c.status)}</p>
         </div>
+        ${
+          creatorId
+            ? `<div class="chat-role-admin"><em>ADMIN</em> <strong>${escapeHtml(creatorName)}</strong>${creatorId === this.me.id ? ' · You' : ''}</div>`
+            : ''
+        }
         <div class="chat-members">
-          <h5>${icons.users()} Members</h5>
-          <ul>${members || '<li>No members</li>'}</ul>
+          <div class="chat-members-block">
+            <h5>${icons.users()} Online now · ${onlineIds.length}</h5>
+            <ul>${onlineIds.map((id) => this.memberRow(id, true)).join('') || '<li>No one is online</li>'}</ul>
+          </div>
+          <div class="chat-members-block">
+            <h5>Offline now · ${offlineIds.length}</h5>
+            <ul>${offlineIds.map((id) => this.memberRow(id, false)).join('') || '<li>No offline members</li>'}</ul>
+          </div>
         </div>`;
     } else {
       this.el('#chat-info-body').innerHTML = `
@@ -1337,7 +1479,7 @@ export class ChatApp {
         </div>
         <div class="chat-about">
           <h5>Direct message</h5>
-          <p>Messages are delivered in real time while ${escapeHtml(c.name)} is online.</p>
+          <p>Messages are delivered in real time while ${escapeHtml(c.name)} is online. Voice calls are available here.</p>
         </div>`;
     }
   }

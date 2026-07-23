@@ -15,9 +15,11 @@ import {
   openHowToPlay,
   openMatches,
   openInventory,
+  openModerationPage,
   hidePageView,
   setPath,
 } from './pages';
+import { refreshSession } from './auth';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = dashboardHTML();
@@ -186,6 +188,19 @@ topbarChat.addEventListener('click', () => {
 document.addEventListener('link:open-profile', () => {
   setActiveNav('profile');
   openProfile();
+});
+
+document.addEventListener('link:open-moderation', () => {
+  setActiveNav('profile');
+  openModerationPage();
+});
+
+/** Pick up role promotions (ADMIN) without forcing re-login. */
+window.setInterval(() => {
+  void refreshSession();
+}, 45_000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void refreshSession();
 });
 
 dashboard.querySelectorAll('.dash-nav-item, .dash-footer-nav a').forEach((el) => {

@@ -259,16 +259,22 @@ function updateChrome(user: AuthUser | null): void {
   if (user?.role === 'admin') {
     if (!adminBadge) {
       const right = document.querySelector('.dash-topbar-right');
+      const insertBeforeEl =
+        document.querySelector('.auth-user-wrap') || userChip || right?.lastElementChild;
       adminBadge = document.createElement('button');
       adminBadge.type = 'button';
       adminBadge.id = 'auth-admin-badge';
       adminBadge.className = 'dash-admin-badge';
-      adminBadge.title = 'Open moderation panel';
-      adminBadge.textContent = 'ADMIN';
-      right?.insertBefore(adminBadge, userChip || null);
+      adminBadge.title = 'Manage users';
+      adminBadge.innerHTML = '<span>ADMIN</span><small>Manage</small>';
+      if (insertBeforeEl && insertBeforeEl.parentElement) {
+        insertBeforeEl.parentElement.insertBefore(adminBadge, insertBeforeEl);
+      } else {
+        right?.appendChild(adminBadge);
+      }
       adminBadge.addEventListener('click', (e) => {
         e.stopPropagation();
-        openModPanel();
+        document.dispatchEvent(new CustomEvent('link:open-moderation'));
       });
     }
     adminBadge.hidden = false;
@@ -297,7 +303,7 @@ async function modApi<T>(path: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
-function openModPanel(): void {
+export function openModPanel(): void {
   if (currentUser?.role !== 'admin') {
     showToast('ADMIN access required');
     return;
@@ -417,30 +423,15 @@ function setupUserMenu(): void {
   menu.hidden = true;
   menu.innerHTML = `
     <button type="button" class="auth-user-menu-item" data-act="profile">User Profile</button>
-    <button type="button" class="auth-user-menu-item" data-act="avatar">Change avatar</button>
     <button type="button" class="auth-user-menu-item" data-act="logout">Log Out</button>
   `;
   wrap.appendChild(menu);
-
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'image/png,image/jpeg,image/webp,image/gif';
-  fileInput.hidden = true;
-  fileInput.id = 'auth-avatar-input';
-  wrap.appendChild(fileInput);
 
   chip.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!currentUser) return;
     menu.hidden = !menu.hidden;
     chip.classList.toggle('open', !menu.hidden);
-  });
-
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files?.[0];
-    fileInput.value = '';
-    if (!file) return;
-    await uploadAvatar(file);
   });
 
   menu.addEventListener('click', async (e) => {
@@ -450,8 +441,6 @@ function setupUserMenu(): void {
     chip.classList.remove('open');
     if (act === 'profile') {
       document.dispatchEvent(new CustomEvent('link:open-profile'));
-    } else if (act === 'avatar') {
-      fileInput.click();
     } else if (act === 'logout') {
       await logout();
       showToast('Signed out');
@@ -466,7 +455,7 @@ function setupUserMenu(): void {
   });
 }
 
-async function uploadAvatar(file: File): Promise<void> {
+export async function uploadAvatar(file: File): Promise<void> {
   const t = token();
   if (!t) {
     openAuthModal('signup');

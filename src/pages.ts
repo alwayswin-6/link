@@ -1,4 +1,4 @@
-import { getAuthUser, getUserAvatarSrc } from './auth';
+import { getAuthUser, getUserAvatarSrc, openModPanel, uploadAvatar } from './auth';
 import { showToast } from './ui';
 import { openDiscordInvite } from './discord';
 
@@ -232,10 +232,20 @@ export function openProfile(): void {
     html: `
       <div class="page-card page-profile">
         <div class="page-profile-top">
-          <div class="page-avatar"><img src="${esc(avatar)}" alt="" /></div>
+          <div class="page-avatar">
+            <img id="profile-avatar-img" src="${esc(avatar)}" alt="" />
+          </div>
           <div>
             <h2 class="page-profile-name">${esc(name)}</h2>
             <p class="page-badge">◆ RANK #${rank} · Season 1</p>
+            ${
+              user
+                ? `<div class="page-avatar-actions">
+              <button type="button" class="page-btn" id="profile-avatar-btn">Change avatar</button>
+              <input type="file" id="profile-avatar-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+            </div>`
+                : ''
+            }
           </div>
         </div>
         <div class="page-stat-grid">
@@ -253,6 +263,42 @@ export function openProfile(): void {
     `,
     onMount(root) {
       root.querySelector('#p-stats')?.addEventListener('click', () => openStatistics());
+      const btn = root.querySelector<HTMLButtonElement>('#profile-avatar-btn');
+      const input = root.querySelector<HTMLInputElement>('#profile-avatar-input');
+      const img = root.querySelector<HTMLImageElement>('#profile-avatar-img');
+      btn?.addEventListener('click', () => input?.click());
+      input?.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        input.value = '';
+        if (!file) return;
+        await uploadAvatar(file);
+        const next = getUserAvatarSrc(getAuthUser());
+        if (img) img.src = next;
+      });
+    },
+  });
+}
+
+/** Player-ADMIN moderation page (opened from header ADMIN badge). */
+export function openModerationPage(): void {
+  const user = getAuthUser();
+  if (!user || user.role !== 'admin') {
+    showToast('ADMIN access required');
+    return;
+  }
+  openPage({
+    id: 'moderation',
+    title: 'USER MANAGEMENT',
+    subtitle: 'ADMIN tools · ban, suspend, and mute players',
+    html: `
+      <div class="page-card page-moderation">
+        <p class="page-text">Manage regular players from here. You cannot moderate other ADMINs. The full SUPER ADMIN console is separate.</p>
+        <button type="button" class="page-btn" id="mod-open-panel">Open management panel</button>
+      </div>
+    `,
+    onMount(root) {
+      root.querySelector('#mod-open-panel')?.addEventListener('click', () => openModPanel());
+      openModPanel();
     },
   });
 }

@@ -793,6 +793,13 @@
   color: #fff;
 }
 
+.page-avatar-actions {
+  margin-top: 12px;
+}
+.page-avatar-actions .page-btn {
+  margin: 0;
+}
+
 .page-badge {
   margin: 8px 0 0;
   color: #60A5FA;
