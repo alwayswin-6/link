@@ -26,7 +26,6 @@ app.innerHTML = dashboardHTML();
 const dashboard = document.querySelector<HTMLDivElement>('#dashboard')!;
 const dashMain = document.querySelector<HTMLElement>('.dash-main')!;
 const playNowBtn = document.querySelector<HTMLButtonElement>('#play-now-btn')!;
-const modeQuick = document.querySelector<HTMLButtonElement>('#mode-quick')!;
 const navPlay = document.querySelector<HTMLAnchorElement>('#nav-play')!;
 const themeToggle = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
 const topbarChat = document.querySelector<HTMLButtonElement>('#topbar-chat')!;
@@ -134,8 +133,8 @@ function handleNav(nav: string | undefined, e?: Event): void {
 
 // LINK is a downloadable app game — PLAY entry points open the download window.
 playNowBtn.addEventListener('click', () => openDownload());
-modeQuick.addEventListener('click', () => openDownload());
 document.querySelector('#quick-play-btn')?.addEventListener('click', () => openDownload());
+document.querySelector('#windows-download-btn')?.addEventListener('click', () => openDownload());
 navPlay.addEventListener('click', (e) => handleNav('download', e));
 
 topbarChat.addEventListener('click', () => {
@@ -148,7 +147,7 @@ document.addEventListener('link:open-profile', () => {
   openProfile();
 });
 
-dashboard.querySelectorAll('.dash-nav-item').forEach((el) => {
+dashboard.querySelectorAll('.dash-nav-item, .dash-footer-nav a').forEach((el) => {
   el.addEventListener('click', (e) => {
     if (el.id === 'nav-play') return;
     handleNav((el as HTMLElement).dataset.nav, e);
@@ -166,55 +165,6 @@ themeToggle.addEventListener('click', () => {
   localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark');
 });
 
-/** Hero carousel: image1 → image4 — pauses when tab is hidden to reduce CPU/GPU load */
-function initHeroCarousel(): void {
-  const slides = Array.from(document.querySelectorAll<HTMLImageElement>('.dash-hero-slide'));
-  const dots = Array.from(document.querySelectorAll<HTMLButtonElement>('#hero-dots button'));
-  if (slides.length === 0) return;
-
-  let index = 0;
-  let timer = 0;
-  const INTERVAL_MS = 5000;
-
-  const show = (next: number) => {
-    index = ((next % slides.length) + slides.length) % slides.length;
-    slides.forEach((s, i) => {
-      const on = i === index;
-      s.classList.toggle('active', on);
-      if (on) s.loading = 'eager';
-      else if ('loading' in s) s.loading = 'lazy';
-    });
-    dots.forEach((d, i) => d.classList.toggle('active', i === index));
-  };
-
-  const stop = () => {
-    if (timer) window.clearInterval(timer);
-    timer = 0;
-  };
-
-  const start = () => {
-    stop();
-    if (document.hidden) return;
-    timer = window.setInterval(() => show(index + 1), INTERVAL_MS);
-  };
-
-  dots.forEach((dot) => {
-    dot.addEventListener('click', () => {
-      const i = Number(dot.dataset.index);
-      if (!Number.isNaN(i)) show(i);
-    });
-  });
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop();
-    else start();
-  });
-
-  show(0);
-  start();
-}
-
-initHeroCarousel();
 void initAuth();
 
 initRouter({

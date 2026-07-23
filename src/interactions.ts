@@ -1,30 +1,10 @@
 import { ensureUiChrome, showToast } from './ui';
-import {
-  type ArticleData,
-  openArticle,
-  openCommunity,
-  openDownload,
-  openEvent,
-  openMissions,
-  openNewsList,
-  openPlayer,
-  openRanking,
-} from './pages';
+import { openCommunity, openDownload } from './pages';
 
 export type InteractionCallbacks = {
   showChat: () => void;
   setActiveNav: (nav: string) => void;
 };
-
-function collectArticles(dash: Element): ArticleData[] {
-  return Array.from(dash.querySelectorAll<HTMLElement>('.dash-news-card')).map((card) => ({
-    title: card.querySelector('h4')?.textContent?.trim() || 'News',
-    desc: card.querySelector('.dash-news-desc')?.textContent?.trim() || '',
-    date: (card.querySelector('.dash-news-date')?.textContent?.trim() || '').replace(/^\s*[^A-Za-z0-9]*/, ''),
-    badge: card.querySelector('.dash-news-badge')?.textContent?.trim() || 'UPDATE',
-    img: card.querySelector<HTMLImageElement>('.dash-news-thumb img')?.src,
-  }));
-}
 
 export function initInteractions(cb: InteractionCallbacks): void {
   ensureUiChrome();
@@ -52,59 +32,7 @@ export function initInteractions(cb: InteractionCallbacks): void {
     if (q) showToast(`Searching “${q}”…`);
   });
 
-  // ——— Team / modes ———
-  dash.querySelector('#join-team-btn')?.addEventListener('click', () => {
-    showToast('Team applications open soon');
-  });
-  dash.querySelectorAll<HTMLButtonElement>('.team-view-btn').forEach((btn) => {
-    btn.addEventListener('click', () => showToast('Opening team profile…'));
-  });
-
-  // ——— Game modes → LINK is an app game, so all launch buttons open the download window ———
-  dash.querySelector('#mode-ranked')?.addEventListener('click', () => openDownload());
-  dash.querySelector('#mode-custom')?.addEventListener('click', () => openDownload());
-  dash.querySelector('#mode-training')?.addEventListener('click', () => openDownload());
-
-  // ——— View All links ———
-  dash.querySelectorAll<HTMLAnchorElement>('.dash-view-all').forEach((a) => {
-    a.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (a.classList.contains('lb-viewall')) {
-        openRanking();
-        return;
-      }
-      const head = a.closest('.dash-section-head')?.querySelector('h2')?.textContent?.trim() || '';
-      if (/MISSION/i.test(head)) openMissions();
-      else if (/EVENT/i.test(head)) openEvent();
-      else if (/NEWS/i.test(head)) openNewsList(collectArticles(dash));
-      else if (/MODE|Play/i.test(head)) openDownload();
-      else if (/Community/i.test(head)) openCommunity();
-      else openDownload();
-    });
-  });
-
-  // ——— Events ———
-  dash.querySelector('.evt-view-btn')?.addEventListener('click', () => openEvent());
-
-  // ——— News cards ———
-  const articles = collectArticles(dash);
-  dash.querySelectorAll<HTMLElement>('.dash-news-card').forEach((card, i) => {
-    card.style.cursor = 'pointer';
-    card.tabIndex = 0;
-    const open = () => openArticle(articles[i]);
-    card.addEventListener('click', open);
-    card.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        open();
-      }
-    });
-  });
-
-  // ——— Leaderboard cards ———
-  dash.querySelectorAll<HTMLButtonElement>('.lb-card').forEach((card, i) => {
-    card.addEventListener('click', () => openPlayer(i));
-  });
+  dash.querySelector('#windows-download-btn')?.addEventListener('click', () => openDownload());
 
   // ——— Community ———
   dash.querySelector('.dash-btn-discord')?.addEventListener('click', () => {
