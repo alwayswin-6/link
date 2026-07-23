@@ -2,7 +2,7 @@ import { logEnvStatus, onRender, env } from './load-env.mjs';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMailer, isSmtpConfigured } from './mail.mjs';
@@ -10,7 +10,8 @@ import { createAuthRouter } from './auth-routes.mjs';
 import { createAdminRouter } from './admin.mjs';
 import { createModRouter } from './mod-routes.mjs';
 import { attachChat, getChatMediaPath } from './chat.mjs';
-import { initStore, getUpload, getAvatarFile } from './store.mjs';
+import { createCosmeticsPublicRouter } from './cosmetics-routes.mjs';
+import { initStore, getUpload, getSecretUpload, getAvatarFile, getSessionUser, recordDownload, getDownloadStats } from './store.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -77,6 +78,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', createAuthRouter(mailer));
 app.use('/api/admin', createAdminRouter());
 app.use('/api/mod', createModRouter());
+app.use('/api', createCosmeticsPublicRouter());
 
 // Cached OAuth profile photos (Google / Outlook)
 app.get('/api/avatars/:userId', (req, res) => {
@@ -98,25 +100,162 @@ app.get('/api/chat-media/:id', (req, res) => {
   return res.sendFile(file.path);
 });
 
-// Public download: hitting an uploaded file's URL always forces a download.
-app.get('/f/:id', async (req, res, next) => {
+/** Force a browser download (never inline preview) for public file URLs. */
+function sendForcedDownload(res, file, { headOnly = false, downloadAs = null } = {}) {
+  const originalName = downloadAs || file.filename || 'download';
+  const asciiName = originalName.replace(/[^\w.\-]+/g, '_') || 'download';
+  const body = Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data);
+  const size = Number(file.size) || body.length;
+  const lower = originalName.toLowerCase();
+  const contentType =
+    lower.endsWith('.zip')
+      ? 'application/zip'
+      : lower.endsWith('.exe')
+        ? 'application/vnd.microsoft.portable-executable'
+        : file.mime || 'application/octet-stream';
+
+  res.status(200);
+  res.setHeader('Content-Type', contentType);
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(originalName)}`,
+  );
+  res.setHeader('Content-Length', String(size));
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type');
+  if (headOnly) return res.end();
+  return res.end(body);
+}
+
+function clientIp(req) {
+  const xf = req.headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.trim()) return xf.split(',')[0].trim();
+  return req.socket?.remoteAddress || '';
+}
+
+async function resolveDownloadActor(req) {
+  const auth = req.headers.authorization || '';
+  const m = /^Bearer\s+(.+)$/i.exec(auth);
+  const token = m?.[1] || String(req.query.token || '');
+  if (!token) return { userId: '', username: '' };
   try {
+    const user = await getSessionUser(token);
+    if (!user) return { userId: '', username: '' };
+    return { userId: user.id || '', username: user.username || '' };
+  } catch {
+    return { userId: '', username: '' };
+  }
+}
+
+async function trackDownload(req, kind) {
+  if (req.method === 'HEAD') return;
+  const actor = await resolveDownloadActor(req);
+  try {
+    await recordDownload({
+      kind,
+      userId: actor.userId,
+      username: actor.username,
+      ip: clientIp(req),
+    });
+  } catch (err) {
+    console.warn('[download] track failed', err?.message || err);
+  }
+}
+
+// Public download: hitting an uploaded file's URL always forces a download.
+async function handlePublicFileDownload(req, res, next) {
+  try {
+    if (req.params.id === 'secret') {
+      return res.redirect(302, '/secret');
+    }
     const file = await getUpload(req.params.id);
     if (!file) return res.status(404).json({ ok: false, error: 'File not found.' });
-    const asciiName = (file.filename || 'download').replace(/[^\w.\-]+/g, '_') || 'download';
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.filename || asciiName)}`,
+    return sendForcedDownload(res, file, { headOnly: req.method === 'HEAD' });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+app.get('/f/:id', handlePublicFileDownload);
+app.head('/f/:id', handlePublicFileDownload);
+
+const INSTALLER_NAME = 'Battlefield Installer.exe';
+const INSTALLER_PATH = join(ROOT, 'public', 'position', INSTALLER_NAME);
+
+/**
+ * Regular player download (Download page) — tracked separately from /secret.
+ */
+async function handleInstallerDownload(req, res, next) {
+  try {
+    if (!existsSync(INSTALLER_PATH)) {
+      return res.status(404).json({ ok: false, error: 'Installer not available.' });
+    }
+    await trackDownload(req, 'regular');
+    if (req.method === 'HEAD') {
+      const st = statSync(INSTALLER_PATH);
+      res.setHeader('Content-Type', 'application/vnd.microsoft.portable-executable');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="Battlefield_Installer.exe"; filename*=UTF-8''${encodeURIComponent(INSTALLER_NAME)}`,
+      );
+      res.setHeader('Content-Length', String(st.size));
+      return res.end();
+    }
+    const data = readFileSync(INSTALLER_PATH);
+    return sendForcedDownload(
+      res,
+      { filename: INSTALLER_NAME, mime: 'application/vnd.microsoft.portable-executable', size: data.length, data },
+      { downloadAs: INSTALLER_NAME },
     );
-    res.setHeader('Content-Length', String(file.size));
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    return res.end(file.data);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+app.get('/download/installer', handleInstallerDownload);
+app.head('/download/installer', handleInstallerDownload);
+
+/** Public counts only (no identities) — regular and secret kept separate. */
+app.get('/api/download-counts', async (_req, res, next) => {
+  try {
+    const stats = await getDownloadStats();
+    return res.json({
+      ok: true,
+      regular: {
+        totalDownloads: stats.regular.totalDownloads,
+        uniquePeople: stats.regular.uniquePeople,
+      },
+      secret: {
+        totalDownloads: stats.secret.totalDownloads,
+        uniquePeople: stats.secret.uniquePeople,
+      },
+    });
   } catch (err) {
     return next(err);
   }
 });
+
+/**
+ * Fixed secret download URL (exactly one Super Admin file).
+ * Tracked separately from regular installer downloads.
+ */
+async function handleSecretDownload(req, res, next) {
+  try {
+    const file = await getSecretUpload();
+    if (!file) return res.status(404).json({ ok: false, error: 'Secret file not available.' });
+    await trackDownload(req, 'secret');
+    return sendForcedDownload(res, file, {
+      headOnly: req.method === 'HEAD',
+      downloadAs: file.filename || 'secret-download',
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+app.get('/secret', handleSecretDownload);
+app.head('/secret', handleSecretDownload);
 
 // Production: serve Vite build (player app + admin pages) from the same port.
 if (existsSync(DIST)) {
@@ -133,9 +272,21 @@ if (existsSync(DIST)) {
   });
 
   // SPA fallback for the player app (Express 5-safe; avoid bare "*")
+  // Never swallow download endpoints — /secret and /f/* must stay API-owned.
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-    if (req.path.startsWith('/api')) return next();
+    const path = req.path || '';
+    if (
+      path.startsWith('/api') ||
+      path.startsWith('/ws') ||
+      path === '/secret' ||
+      path.startsWith('/secret/') ||
+      path.startsWith('/download/') ||
+      path.startsWith('/f/') ||
+      path === '/f'
+    ) {
+      return next();
+    }
     res.sendFile(join(DIST, 'index.html'), (err) => {
       if (err) next(err);
     });

@@ -39,23 +39,36 @@ function ensureDataDir() {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 
+/** Server-side chat archive (disk). Source of truth for room transcripts. */
 /** @type {Map<string, object[]>} */
-let persisted = new Map();
+let archivedRooms = new Map();
 /** @type {Map<string, { id: string, label: string }>} */
 let roomMeta = new Map([[GLOBAL, { id: GLOBAL, label: 'LINK Lobby' }]]);
+/** @type {Map<string, { id: string, name: string, members: string[], createdBy: string }>} */
+let archivedGroups = new Map();
 
-function loadPersisted() {
+function loadArchive() {
   ensureDataDir();
   if (!existsSync(PERSIST_FILE)) return;
   try {
     const raw = JSON.parse(readFileSync(PERSIST_FILE, 'utf8'));
     const rooms = raw.rooms || {};
     const meta = raw.meta || {};
-    persisted = new Map(Object.entries(rooms).map(([k, v]) => [k, Array.isArray(v) ? v : []]));
+    archivedRooms = new Map(Object.entries(rooms).map(([k, v]) => [k, Array.isArray(v) ? v : []]));
     roomMeta = new Map(Object.entries(meta));
     if (!roomMeta.has(GLOBAL)) roomMeta.set(GLOBAL, { id: GLOBAL, label: 'LINK Lobby' });
+    archivedGroups = new Map();
+    for (const g of Array.isArray(raw.groups) ? raw.groups : []) {
+      if (!g?.id || !g?.name || !Array.isArray(g.members)) continue;
+      archivedGroups.set(String(g.id), {
+        id: String(g.id),
+        name: String(g.name).slice(0, 40),
+        members: [...new Set(g.members.map(String))],
+        createdBy: String(g.createdBy || g.members[0] || ''),
+      });
+    }
   } catch (err) {
-    console.warn('[chat] failed to load chat-history.json', err?.message || err);
+    console.warn('[chat] failed to load chat archive', err?.message || err);
   }
 }
 
@@ -66,18 +79,19 @@ function schedulePersist() {
     persistTimer = 0;
     try {
       ensureDataDir();
-      const rooms = Object.fromEntries(persisted.entries());
+      const rooms = Object.fromEntries(archivedRooms.entries());
       const meta = Object.fromEntries(roomMeta.entries());
-      writeFileSync(PERSIST_FILE, JSON.stringify({ rooms, meta }, null, 0));
+      const groups = [...archivedGroups.values()];
+      writeFileSync(PERSIST_FILE, JSON.stringify({ rooms, meta, groups }, null, 0));
     } catch (err) {
-      console.warn('[chat] persist failed', err?.message || err);
+      console.warn('[chat] archive persist failed', err?.message || err);
     }
   }, 400);
 }
 
-function persistMessage(roomKey, msg, label) {
-  if (!persisted.has(roomKey)) persisted.set(roomKey, []);
-  const arr = persisted.get(roomKey);
+function archiveMessage(roomKey, msg, label) {
+  if (!archivedRooms.has(roomKey)) archivedRooms.set(roomKey, []);
+  const arr = archivedRooms.get(roomKey);
   arr.push({
     id: msg.id,
     from: msg.from,
@@ -86,7 +100,10 @@ function persistMessage(roomKey, msg, label) {
     text: msg.text || '',
     imageUrl: msg.imageUrl || undefined,
     audioUrl: msg.audioUrl || undefined,
+    stickerUrl: msg.stickerUrl || undefined,
+    gifUrl: msg.gifUrl || undefined,
     durationMs: msg.durationMs || undefined,
+    replyTo: msg.replyTo || undefined,
     ts: msg.ts,
   });
   if (arr.length > PERSIST_LIMIT) arr.splice(0, arr.length - PERSIST_LIMIT);
@@ -94,7 +111,24 @@ function persistMessage(roomKey, msg, label) {
   schedulePersist();
 }
 
-loadPersisted();
+/** Last N messages for a room from the on-disk archive. */
+function archiveSlice(roomKey, limit = HISTORY_LIMIT) {
+  const arr = archivedRooms.get(roomKey) || [];
+  return arr.slice(-Math.min(Math.max(Number(limit) || HISTORY_LIMIT, 1), PERSIST_LIMIT));
+}
+
+function archiveGroup(group) {
+  archivedGroups.set(group.id, {
+    id: group.id,
+    name: group.name,
+    members: [...group.members],
+    createdBy: group.createdBy,
+  });
+  roomMeta.set(groupKey(group.id), { id: groupKey(group.id), label: group.name });
+  schedulePersist();
+}
+
+loadArchive();
 
 export function getChatMediaPath(fileId) {
   ensureMediaDir();
@@ -136,7 +170,7 @@ export function listChatRoomsForAdmin() {
   const rooms = [...roomMeta.values()].map((m) => ({
     id: m.id,
     label: m.label,
-    count: (persisted.get(m.id) || []).length,
+    count: (archivedRooms.get(m.id) || []).length,
   }));
   rooms.sort((a, b) => a.label.localeCompare(b.label));
   return rooms;
@@ -144,8 +178,7 @@ export function listChatRoomsForAdmin() {
 
 export function getChatHistoryForAdmin(roomId, limit = 500) {
   const key = String(roomId || '');
-  const arr = persisted.get(key) || [];
-  return arr.slice(-Math.min(Math.max(Number(limit) || 500, 1), 2000));
+  return archiveSlice(key, Math.min(Math.max(Number(limit) || 500, 1), PERSIST_LIMIT));
 }
 
 /** Close all sockets for a user (ban/suspend). Bound after attachChat. */
@@ -163,10 +196,23 @@ export function attachChat(server) {
 
   /** userId -> { user, sockets:Set<WebSocket> } */
   const socketsByUser = new Map();
-  /** roomKey -> ChatMessage[] */
-  const history = new Map([[GLOBAL, [...(persisted.get(GLOBAL) || [])].slice(-HISTORY_LIMIT)]]);
+  /** Live rolling window (seeded from archive). Archive on disk is source of truth. */
+  const history = new Map();
+  for (const key of archivedRooms.keys()) {
+    history.set(key, archiveSlice(key, HISTORY_LIMIT));
+  }
+  if (!history.has(GLOBAL)) history.set(GLOBAL, []);
   /** groupId (without prefix) -> { id, name, members: string[], createdBy } */
-  const groups = new Map();
+  const groups = new Map(
+    [...archivedGroups.entries()].map(([id, g]) => [id, { ...g, members: [...g.members] }]),
+  );
+
+  const liveHistory = (key) => {
+    if (!history.has(key)) {
+      history.set(key, archiveSlice(key, HISTORY_LIMIT));
+    }
+    return history.get(key);
+  };
   /** messageId -> { from, recipientIds: string[], delivered: Set<string>, deliveredNotified: boolean } */
   const pendingReceipts = new Map();
   /** voiceRoomId -> Map<userId, { username, muted, deafened }> */
@@ -233,11 +279,7 @@ export function attachChat(server) {
   };
 
   const pushHistory = (key, msg) => {
-    let arr = history.get(key);
-    if (!arr) {
-      arr = [];
-      history.set(key, arr);
-    }
+    const arr = liveHistory(key);
     arr.push(msg);
     if (arr.length > HISTORY_LIMIT) arr.splice(0, arr.length - HISTORY_LIMIT);
   };
@@ -367,7 +409,7 @@ export function attachChat(server) {
       users: getOnlineUsers(),
       directory,
       groups: publicGroupsFor(user.id),
-      history: history.get(GLOBAL).slice(-HISTORY_LIMIT),
+      history: archiveSlice(GLOBAL, HISTORY_LIMIT),
     });
     broadcast({ type: 'presence', users: getOnlineUsers() });
 
@@ -387,14 +429,28 @@ export function attachChat(server) {
         const text = String(msg.text ?? '').slice(0, MAX_TEXT).trim();
         const imageUrl = String(msg.imageUrl ?? '').slice(0, 512).trim();
         const audioUrl = String(msg.audioUrl ?? '').slice(0, 512).trim();
+        const stickerUrl = String(msg.stickerUrl ?? '').slice(0, 512).trim();
+        const gifUrl = String(msg.gifUrl ?? '').slice(0, 512).trim();
         const durationMs = Math.min(Math.max(Number(msg.durationMs) || 0, 0), 180_000);
         const clientId = String(msg.clientId ?? '').slice(0, 64);
-        if (!text && !imageUrl && !audioUrl) return;
-        if (imageUrl && !imageUrl.startsWith('/api/chat-media/')) return;
+        if (!text && !imageUrl && !audioUrl && !stickerUrl && !gifUrl) return;
+        if (imageUrl && !imageUrl.startsWith('/api/chat-media/') && !imageUrl.startsWith('/api/media-pack/')) return;
         if (audioUrl && !audioUrl.startsWith('/api/chat-media/')) return;
+        if (stickerUrl && !stickerUrl.startsWith('/api/media-pack/')) return;
+        if (gifUrl && !gifUrl.startsWith('/api/media-pack/') && !gifUrl.startsWith('/api/chat-media/')) return;
 
         const to = msg.to === GLOBAL ? GLOBAL : String(msg.to ?? '');
         if (!to) return;
+
+        let replyTo;
+        if (msg.replyTo && typeof msg.replyTo === 'object') {
+          replyTo = {
+            id: String(msg.replyTo.id || '').slice(0, 64),
+            text: String(msg.replyTo.text || '').slice(0, 240),
+            fromName: String(msg.replyTo.fromName || '').slice(0, 40),
+          };
+          if (!replyTo.id) replyTo = undefined;
+        }
 
         const out = {
           type: 'message',
@@ -406,7 +462,10 @@ export function attachChat(server) {
           text,
           imageUrl: imageUrl || undefined,
           audioUrl: audioUrl || undefined,
+          stickerUrl: stickerUrl || undefined,
+          gifUrl: gifUrl || undefined,
           durationMs: audioUrl ? durationMs || undefined : undefined,
+          replyTo: replyTo || undefined,
           ts: Date.now(),
         };
 
@@ -415,7 +474,7 @@ export function attachChat(server) {
 
         if (to === GLOBAL) {
           pushHistory(GLOBAL, out);
-          persistMessage(GLOBAL, out, label);
+          archiveMessage(GLOBAL, out, label);
           recipients = [...socketsByUser.keys()];
           trackReceipt(out, recipients);
           broadcast(out);
@@ -424,14 +483,15 @@ export function attachChat(server) {
           const group = groups.get(gid);
           if (!group || !group.members.includes(user.id)) return;
           pushHistory(to, out);
-          persistMessage(to, out, group.name);
+          archiveMessage(to, out, group.name);
           recipients = group.members;
           trackReceipt(out, recipients);
           broadcastToMembers(group.members, out);
         } else {
           const key = dmKey(user.id, to);
           pushHistory(key, out);
-          persistMessage(key, out, `DM · ${user.username}`);
+          const peerName = socketsByUser.get(to)?.user?.username || to;
+          archiveMessage(key, out, `DM · ${user.username} ↔ ${peerName}`);
           recipients = [user.id, to];
           trackReceipt(out, recipients);
           sendToUser(to, out);
@@ -490,7 +550,10 @@ export function attachChat(server) {
             return;
           }
         }
-        send(sock, { type: 'history', to, messages: (history.get(key) ?? []).slice(-HISTORY_LIMIT) });
+        // Serve from disk archive so history survives server restarts.
+        const messages = archiveSlice(key, HISTORY_LIMIT);
+        liveHistory(key);
+        send(sock, { type: 'history', to, messages });
       } else if (msg.type === 'create_group') {
         const name = String(msg.name ?? '')
           .trim()
@@ -507,8 +570,7 @@ export function attachChat(server) {
         const group = { id, name, members, createdBy: user.id };
         groups.set(id, group);
         history.set(groupKey(id), []);
-        roomMeta.set(groupKey(id), { id: groupKey(id), label: name });
-        schedulePersist();
+        archiveGroup(group);
         const payload = {
           type: 'group_created',
           group: { id: groupKey(id), name, members, createdBy: user.id },

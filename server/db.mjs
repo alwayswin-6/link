@@ -119,6 +119,17 @@ CREATE TABLE IF NOT EXISTS admin_settings (
   key   TEXT PRIMARY KEY,
   value JSONB NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS download_events (
+  id         TEXT PRIMARY KEY,
+  kind       TEXT NOT NULL,
+  user_id    TEXT NOT NULL DEFAULT '',
+  username   TEXT NOT NULL DEFAULT '',
+  ip         TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS download_events_kind_idx ON download_events (kind);
+CREATE INDEX IF NOT EXISTS download_events_created_idx ON download_events (created_at DESC);
 `;
 
 const MIGRATIONS = `

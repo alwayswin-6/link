@@ -29,6 +29,7 @@ export function dashboardHTML(): string {
           <a class="dash-nav-item" href="/matches" data-nav="matches" id="nav-matches"><span>Matches</span></a>
           <a class="dash-nav-item" href="/community" data-nav="community" id="nav-community"><span>Community</span></a>
           <a class="dash-nav-item" href="/inventory" data-nav="inventory" id="nav-inventory"><span>Inventory</span></a>
+          <a class="dash-nav-item" href="/shop" data-nav="shop" id="nav-shop"><span>Shop</span></a>
         </nav>
 
         <div class="dash-topbar-right">
@@ -40,10 +41,12 @@ export function dashboardHTML(): string {
           <button type="button" class="dash-icon-btn has-dot" id="topbar-chat" aria-label="Open chat" title="Chat">${iconChat()}</button>
           <button type="button" class="dash-icon-btn has-dot" aria-label="Notifications">${iconBell()}</button>
           <button type="button" class="dash-user-chip" id="auth-user-chip" hidden>
-            <span class="dash-user-avatar"><img class="dash-fill" src="/position/defult.png" alt="Player avatar" /></span>
+            <span class="dash-user-avatar cos-avatar-shell sm" id="dash-user-cos">
+              <span class="cos-avatar-core"><img class="dash-fill" src="/position/defult.png" alt="Player avatar" /></span>
+            </span>
             <span class="dash-user-meta">
               <span class="dash-online-dot" title="Online" aria-label="Online"></span>
-              <span class="dash-user-name">Player</span>
+              <span class="dash-user-name" id="dash-user-nameplate">Player</span>
             </span>
             <span class="dash-chevron" aria-hidden="true">▾</span>
           </button>
@@ -363,7 +366,7 @@ function lbCard(rank: number, name: string, league: string, lp: string, gold: bo
 }
 
 function brandLogo(): string {
-  return `<img class="dash-brand-mark" src="/position/logo.png" alt="" width="40" height="40" decoding="async" />`;
+  return `<img class="dash-brand-mark" src="/position/logo.png" alt="" width="48" height="52" decoding="async" />`;
 }
 
 function iconChat() {

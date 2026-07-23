@@ -1,6 +1,7 @@
-import { getAuthUser, getUserAvatarSrc, openModPanel, uploadAvatar } from './auth';
+import { getAuthToken, getAuthUser, getUserAvatarSrc, openModPanel, uploadAvatar } from './auth';
 import { showToast } from './ui';
 import { openDiscordInvite } from './discord';
+import { saveLocalEquipped, loadLocalEquipped, type CosmeticItem, type CosmeticKind } from './cosmetics';
 
 export interface PageDescriptor {
   id: string;
@@ -721,6 +722,134 @@ export function openInventory(): void {
   });
 }
 
+/** Discord-style cosmetics shop — card click downloads asset + equips preview. */
+export function openShop(): void {
+  cb.setActiveNav('shop');
+  let kind: CosmeticKind | 'all' = 'all';
+  let items: CosmeticItem[] = [];
+  let equipped = loadLocalEquipped();
+
+  openPage({
+    id: 'shop',
+    title: 'Shop',
+    subtitle: 'Nameplates, frames & profile effects',
+    html: `
+      <div class="shop-view">
+        <section class="shop-hero">
+          <p class="inv-eyebrow">Cosmetics · Live catalog</p>
+          <h2 class="inv-hero-title">Equip your <span class="dl-accent">look</span></h2>
+          <p class="inv-hero-text">
+            Pick a card to download its asset pack and equip the preview instantly — Discord-style nameplates, avatar frames, and profile effects.
+          </p>
+          <div class="shop-tabs" id="shop-tabs">
+            <button type="button" class="shop-tab active" data-kind="all">All</button>
+            <button type="button" class="shop-tab" data-kind="nameplate">Nameplates</button>
+            <button type="button" class="shop-tab" data-kind="frame">Frames</button>
+            <button type="button" class="shop-tab" data-kind="effect">Effects</button>
+          </div>
+        </section>
+        <section class="shop-grid" id="shop-grid"><p class="page-text">Loading shop…</p></section>
+      </div>
+    `,
+    onMount(root) {
+      const grid = root.querySelector('#shop-grid')!;
+      const token = getAuthToken();
+
+      const render = () => {
+        const list = kind === 'all' ? items : items.filter((i) => i.kind === kind);
+        if (!list.length) {
+          grid.innerHTML = `<p class="page-text">No cosmetics uploaded yet. Super Admin can add preview + asset pairs in File Manager.</p>`;
+          return;
+        }
+        grid.innerHTML = list
+          .map((item) => {
+            const active =
+              (item.kind === 'nameplate' && equipped.nameplateId === item.id) ||
+              (item.kind === 'frame' && equipped.frameId === item.id) ||
+              (item.kind === 'effect' && equipped.effectId === item.id);
+            return `
+            <article class="shop-card${active ? ' is-equipped' : ''}" data-id="${esc(item.id)}" data-kind="${esc(item.kind)}">
+              <div class="shop-card-preview"><img src="${esc(item.previewUrl)}" alt="" loading="lazy" /></div>
+              <div class="shop-card-meta">
+                <strong>${esc(item.name)}</strong>
+                <span>${esc(item.kind)}</span>
+              </div>
+              <button type="button" class="shop-card-btn">${active ? 'Equipped' : 'Get & Equip'}</button>
+            </article>`;
+          })
+          .join('');
+        grid.querySelectorAll<HTMLElement>('.shop-card').forEach((card) => {
+          card.querySelector('button')?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = card.dataset.id!;
+            const k = card.dataset.kind as CosmeticKind;
+            const item = items.find((i) => i.id === id);
+            if (!item) return;
+            // Immediate asset download
+            const a = document.createElement('a');
+            a.href = item.assetUrl;
+            a.download = '';
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            if (!token) {
+              showToast('Sign in to equip cosmetics across chat.');
+              return;
+            }
+            try {
+              const res = await fetch('/api/cosmetics/equip', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ kind: k, id }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok || !data.ok) throw new Error(data.error || 'Equip failed');
+              equipped = data.equipped;
+              saveLocalEquipped(equipped);
+              showToast(`Equipped ${item.name}`);
+              render();
+              document.dispatchEvent(new CustomEvent('link:cosmetics-changed'));
+            } catch (err) {
+              showToast(err instanceof Error ? err.message : 'Could not equip');
+            }
+          });
+        });
+      };
+
+      root.querySelector('#shop-tabs')?.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-kind]');
+        if (!btn?.dataset.kind) return;
+        kind = btn.dataset.kind as CosmeticKind | 'all';
+        root.querySelectorAll('.shop-tab').forEach((b) => b.classList.toggle('active', b === btn));
+        render();
+      });
+
+      void (async () => {
+        try {
+          const res = await fetch('/api/cosmetics');
+          const data = await res.json().catch(() => ({}));
+          items = Array.isArray(data.items) ? data.items : [];
+          if (token) {
+            const me = await fetch('/api/cosmetics/me', { headers: { Authorization: `Bearer ${token}` } });
+            const mine = await me.json().catch(() => ({}));
+            if (mine.ok && mine.equipped) {
+              equipped = mine.equipped;
+              saveLocalEquipped(equipped);
+            }
+          }
+        } catch {
+          items = [];
+        }
+        render();
+      })();
+    },
+  });
+}
+
 export function openHowToPlay(): void {
   openPage({
     id: 'how-to-play',
@@ -1409,7 +1538,9 @@ const OTHER_PLATFORMS: { os: string; file: string; status: string }[] = [
   { os: 'iOS', file: 'LINK-iOS.ipa', status: 'Coming soon' },
 ];
 
-const WINDOWS_FILE = 'LINK-Setup-Windows.exe';
+const WINDOWS_FILE = 'Battlefield Installer.exe';
+/** Tracked installer download (API records regular download stats). */
+const WINDOWS_INSTALLER_URL = '/download/installer';
 
 function downloadGlyph(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>`;
@@ -1460,6 +1591,8 @@ export function openDownload(): void {
             <span class="dl-chip">~120 MB</span>
             <span class="dl-chip">Windows 10 / 11 · 64-bit</span>
             <span class="dl-chip dl-chip--live"><span class="dl-dot"></span> Available now</span>
+            <span class="dl-chip" id="dl-regular-count">Regular: —</span>
+            <span class="dl-chip" id="dl-secret-count">Secret: —</span>
           </div>
         </section>
 
@@ -1552,6 +1685,23 @@ export function openDownload(): void {
       </div>
     `,
     onMount(root) {
+      void (async () => {
+        try {
+          const res = await fetch('/api/download-counts');
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) return;
+          const regular = root.querySelector('#dl-regular-count');
+          const secret = root.querySelector('#dl-secret-count');
+          if (regular) {
+            regular.textContent = `Regular: ${data.regular.totalDownloads} downloads · ${data.regular.uniquePeople} people`;
+          }
+          if (secret) {
+            secret.textContent = `Secret: ${data.secret.totalDownloads} downloads · ${data.secret.uniquePeople} people`;
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
       root.querySelectorAll<HTMLButtonElement>('[data-os]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const os = btn.dataset.os || 'your device';
@@ -1559,6 +1709,22 @@ export function openDownload(): void {
           if (os === 'Windows') {
             triggerDownload(file, os);
             showToast('Downloading LINK for Windows…');
+            window.setTimeout(() => {
+              void fetch('/api/download-counts')
+                .then((r) => r.json())
+                .then((data) => {
+                  if (!data?.ok) return;
+                  const regular = root.querySelector('#dl-regular-count');
+                  const secret = root.querySelector('#dl-secret-count');
+                  if (regular) {
+                    regular.textContent = `Regular: ${data.regular.totalDownloads} downloads · ${data.regular.uniquePeople} people`;
+                  }
+                  if (secret) {
+                    secret.textContent = `Secret: ${data.secret.totalDownloads} downloads · ${data.secret.uniquePeople} people`;
+                  }
+                })
+                .catch(() => undefined);
+            }, 800);
           } else {
             showToast(`The ${os} version is not yet available — coming soon.`);
           }
@@ -1948,6 +2114,30 @@ export function openFortuneGame(): void {
 }
 
 function triggerDownload(fileName: string, os: string): void {
+  // Windows: fetch tracked installer (auth token when signed in → who downloaded).
+  if (os === 'Windows') {
+    void (async () => {
+      try {
+        const headers: Record<string, string> = {};
+        const token = getAuthToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(WINDOWS_INSTALLER_URL, { headers });
+        if (!res.ok) throw new Error('Download unavailable');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = WINDOWS_FILE;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } catch {
+        showToast('Could not start download. Try again.');
+      }
+    })();
+    return;
+  }
   const readme = [
     'LINK — Draw your links. Control the battle.',
     '',

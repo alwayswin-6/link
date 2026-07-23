@@ -8,6 +8,10 @@ import {
   saveUpload,
   listUploads,
   deleteUpload,
+  saveSecretUpload,
+  getSecretUploadMeta,
+  deleteSecretUpload,
+  getDownloadStats,
   listUsers,
   adminUser,
   updateUserAdmin,
@@ -27,6 +31,7 @@ import {
 } from './store.mjs';
 import { getOnlineIds, getOnlineUsers, onlineCount } from './presence.mjs';
 import { kickChatUser, listChatRoomsForAdmin, getChatHistoryForAdmin } from './chat.mjs';
+import { attachCosmeticsAdminRoutes } from './cosmetics-routes.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -34,6 +39,7 @@ const SEED_FILE = join(ROOT, 'src', 'admin', 'generated', 'admin-seed.json');
 
 const ADMIN_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_SECRET_UPLOAD_BYTES = 512 * 1024 * 1024;
 
 /** token -> { email, role, displayName, expiresAt } */
 const adminSessions = new Map();
@@ -102,6 +108,20 @@ async function audit(req, action, target = '', reason = '') {
 }
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES } });
+const secretUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_SECRET_UPLOAD_BYTES },
+});
+
+function requireSuperAdmin(req, res, next) {
+  const admin = currentAdmin(req);
+  if (!admin) return res.status(401).json({ ok: false, error: 'Admin authentication required.' });
+  if (admin.role !== 'super_admin') {
+    return res.status(403).json({ ok: false, error: 'Super Admin only.' });
+  }
+  req.admin = admin;
+  next();
+}
 
 /** Router for the private admin control plane (mounted at /api/admin). */
 export function createAdminRouter() {
@@ -391,6 +411,9 @@ export function createAdminRouter() {
 
   router.delete('/uploads/:id', requireAdmin, async (req, res) => {
     try {
+      if (req.params.id === 'secret') {
+        return res.status(400).json({ ok: false, error: 'Use the secret upload controls to manage that file.' });
+      }
       const ok = await deleteUpload(req.params.id);
       if (!ok) return res.status(404).json({ ok: false, error: 'File not found.' });
       await audit(req, 'DELETE_FILE', req.params.id, 'removed from file manager');
@@ -400,6 +423,80 @@ export function createAdminRouter() {
       return res.status(500).json({ ok: false, error: 'Could not delete the file.' });
     }
   });
+
+  /** Exactly one secret file — fixed public URL /secret (auto-download). Super Admin only. */
+  router.get('/secret-upload', requireSuperAdmin, async (_req, res) => {
+    try {
+      const file = await getSecretUploadMeta();
+      return res.json({ ok: true, file, url: '/secret' });
+    } catch (err) {
+      console.error('[admin/secret-upload:get]', err);
+      return res.status(500).json({ ok: false, error: 'Could not load secret file.' });
+    }
+  });
+
+  router.post('/secret-upload', requireSuperAdmin, (req, res) => {
+    secretUpload.single('file')(req, res, async (err) => {
+      if (err) {
+        const msg =
+          err.code === 'LIMIT_FILE_SIZE' ? 'File exceeds the 512 MB limit.' : 'Upload failed.';
+        return res.status(400).json({ ok: false, error: msg });
+      }
+      if (!req.file) return res.status(400).json({ ok: false, error: 'No file provided.' });
+      try {
+        const saved = await saveSecretUpload({
+          filename: req.file.originalname || 'file',
+          mime: req.file.mimetype || 'application/octet-stream',
+          size: req.file.size,
+          data: req.file.buffer,
+          uploadedBy: req.admin?.email ?? null,
+        });
+        await audit(req, 'UPLOAD_SECRET_FILE', saved.filename, `${saved.size} bytes → /secret`);
+        // Fixed public URL — opening it always forces a download.
+        return res.status(201).json({
+          ok: true,
+          file: {
+            id: saved.id,
+            filename: saved.filename,
+            mime: saved.mime,
+            size: saved.size,
+            uploadedBy: saved.uploadedBy ?? null,
+            createdAt: saved.createdAt,
+            url: '/secret',
+          },
+          url: '/secret',
+        });
+      } catch (e) {
+        console.error('[admin/secret-upload:save]', e);
+        return res.status(500).json({ ok: false, error: 'Could not store the secret file.' });
+      }
+    });
+  });
+
+  router.delete('/secret-upload', requireSuperAdmin, async (req, res) => {
+    try {
+      const ok = await deleteSecretUpload();
+      if (!ok) return res.status(404).json({ ok: false, error: 'No secret file uploaded.' });
+      await audit(req, 'DELETE_SECRET_FILE', 'secret', 'cleared fixed /secret slot');
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[admin/secret-upload:delete]', err);
+      return res.status(500).json({ ok: false, error: 'Could not delete the secret file.' });
+    }
+  });
+
+  /** Separate regular vs secret download stats (counts + who). */
+  router.get('/download-stats', requireAdmin, async (_req, res) => {
+    try {
+      const stats = await getDownloadStats();
+      return res.json({ ok: true, stats });
+    } catch (err) {
+      console.error('[admin/download-stats]', err);
+      return res.status(500).json({ ok: false, error: 'Could not load download stats.' });
+    }
+  });
+
+  attachCosmeticsAdminRoutes(router, { requireAdmin, requireSuperAdmin, audit });
 
   return router;
 }

@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "seed:admin": "node scripts/seed-admin.mjs",
+    "seed:secret": "node scripts/seed-secret.mjs",
+    "publish:secret": "node scripts/publish-secret.mjs",
+    "gameapp:release": "node scripts/release-gameapp.mjs",
     "predev": "node scripts/ensure-env.mjs && node scripts/seed-admin.mjs",
     "prebuild": "node scripts/seed-admin.mjs",
     "dev:api": "node server/index.mjs",

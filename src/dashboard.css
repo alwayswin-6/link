@@ -33,7 +33,7 @@
   --dash-muted: #9A9FA8;
   --dash-muted-2: #6B717A;
 
-  --header-h: 68px;
+  --header-h: 76px;
   --section-gap: 0;
   --grid-gap: 20px;
   --head-gap: 24px;
@@ -151,16 +151,14 @@
 .dash-brand:hover { opacity: 0.9; }
 
 .dash-brand-mark {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 52px;
   flex: 0 0 auto;
   border-radius: 8px;
-  object-fit: cover;
-  object-position: 50% 8%;
+  object-fit: contain;
+  object-position: center;
   display: block;
-  background: #0A0B0D;
-  /* Brush wordmark drips pull flex center down — nudge mark up to cap height */
-  transform: translateY(-4px);
+  background: transparent;
   position: relative;
   z-index: 1;
 }
@@ -332,8 +330,30 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  overflow: hidden;
+  overflow: visible;
   background: var(--dash-panel-2);
+  position: relative;
+  flex-shrink: 0;
+}
+.dash-user-avatar.cos-avatar-shell {
+  overflow: visible;
+}
+.dash-user-avatar .cos-avatar-core {
+  width: 100%;
+  height: 100%;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.dash-user-avatar .cos-frame,
+.dash-user-avatar .cos-effect {
+  inset: -22%;
+  width: 144%;
+  height: 144%;
+}
+.dash-user-name .cos-nameplate {
+  font-size: 12px;
+  min-height: 18px;
+  padding: 1px 8px;
 }
 
 .dash-fill {
@@ -377,7 +397,19 @@
   flex-direction: column;
 }
 
-.dash-main.is-chat { background: var(--dash-bg); }
+.dash-main.is-chat {
+  background: var(--dash-bg);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Chat mode: fill the viewport, no page scroll under the room */
+.dash.is-chat {
+  height: 100%;
+  max-height: 100dvh;
+  overflow: hidden;
+}
 
 .dash-scroll {
   flex: 1 1 auto;
@@ -1971,7 +2003,7 @@
 }
 
 @media (max-width: 980px) {
-  .dash { --header-h: 70px; --page-x: 24px; }
+  .dash { --header-h: 78px; --page-x: 24px; }
   .dash-nav { display: none; }
   .dash-header-inner { grid-template-columns: auto 1fr; }
   .dash-hero-body { padding: 32px var(--page-x) 10vh; }
@@ -1990,6 +2022,18 @@
   .team-row > :nth-child(4),
   .team-row.head > :nth-child(3),
   .team-row.head > :nth-child(4) { display: none; }
+}
+
+@media (max-width: 560px) {
+  .dash { --header-h: 64px; --page-x: 16px; }
+  .dash-brand-title { font-size: 22px; }
+  .dash-brand-mark { width: 40px; height: 44px; }
+  .dash-topbar-right { gap: 6px; }
+  .dash-user-meta,
+  .dash-chevron { display: none; }
+  .dash-user-chip { padding: 0; width: 40px; height: 40px; justify-content: center; }
+  .dash-user-avatar { width: 32px; height: 32px; }
+  .dash-icon-btn { width: 40px; height: 40px; }
 }
 
 /* ========== THEME TOGGLE + LIGHT ========== */

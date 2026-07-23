@@ -18,6 +18,7 @@ const ICE: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
   ],
 };
 
@@ -29,9 +30,13 @@ export class VoiceRoom {
   private localStream: MediaStream | null = null;
   private pcs = new Map<string, RTCPeerConnection>();
   private remoteAudio = new Map<string, HTMLAudioElement>();
+  private pendingIce = new Map<string, RTCIceCandidateInit[]>();
+  private makingOffer = new Map<string, boolean>();
+  private ignoreOffer = new Map<string, boolean>();
   private send: SendFn;
   private meId = '';
   private onChange: () => void;
+  private audioRoot: HTMLDivElement | null = null;
 
   constructor(send: SendFn, onChange: () => void) {
     this.send = send;
@@ -44,6 +49,15 @@ export class VoiceRoom {
 
   setIdentity(id: string, _username: string): void {
     this.meId = id;
+  }
+
+  /** Higher id is the offerer — avoids glare when both join at once. */
+  private isOfferer(peerId: string): boolean {
+    return this.meId.localeCompare(peerId) > 0;
+  }
+
+  private isPolite(peerId: string): boolean {
+    return !this.isOfferer(peerId);
   }
 
   async join(roomId: string): Promise<void> {
@@ -61,6 +75,25 @@ export class VoiceRoom {
     } catch {
       throw new Error('Microphone permission denied');
     }
+
+    // Unlock autoplay using the same user gesture that started the call.
+    this.ensureAudioRoot();
+    try {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (AC) {
+        const ctx = new AC();
+        await ctx.resume();
+        void ctx.close();
+      }
+    } catch {
+      /* ignore */
+    }
+    const unlock = new Audio();
+    unlock.src =
+      'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+    unlock.volume = 0.01;
+    void unlock.play().catch(() => undefined);
+
     this.roomId = roomId;
     this.muted = false;
     this.deafened = false;
@@ -75,8 +108,13 @@ export class VoiceRoom {
     if (room) this.send({ type: 'voice_leave', room });
     for (const id of [...this.pcs.keys()]) this.closePeer(id);
     this.peers.clear();
+    this.pendingIce.clear();
+    this.makingOffer.clear();
+    this.ignoreOffer.clear();
     this.localStream?.getTracks().forEach((t) => t.stop());
     this.localStream = null;
+    this.audioRoot?.remove();
+    this.audioRoot = null;
     this.onChange();
   }
 
@@ -97,6 +135,7 @@ export class VoiceRoom {
     }
     for (const audio of this.remoteAudio.values()) {
       audio.muted = this.deafened;
+      audio.volume = this.deafened ? 0 : 1;
     }
     if (this.roomId) {
       this.send({ type: 'voice_state', room: this.roomId, muted: this.muted, deafened: this.deafened });
@@ -123,15 +162,13 @@ export class VoiceRoom {
       for (const p of data.peers) {
         if (p.id === this.meId) continue;
         this.peers.set(p.id, p);
-        // Wait for existing peers to offer; prepare PC without offering
-        void this.ensurePeer(p.id, false);
+        void this.ensurePeer(p.id);
       }
       this.onChange();
     } else if (data.type === 'voice_peer_joined' && data.peer) {
       if (data.peer.id === this.meId) return;
       this.peers.set(data.peer.id, data.peer);
-      // Existing members create the offer toward the new joiner
-      void this.ensurePeer(data.peer.id, true);
+      void this.ensurePeer(data.peer.id);
       this.onChange();
     } else if (data.type === 'voice_peer_left' && data.from) {
       this.peers.delete(data.from);
@@ -150,6 +187,44 @@ export class VoiceRoom {
     }
   }
 
+  private ensureAudioRoot(): HTMLDivElement {
+    if (this.audioRoot?.isConnected) return this.audioRoot;
+    const el = document.createElement('div');
+    el.id = 'link-voice-audio-root';
+    el.setAttribute('aria-hidden', 'true');
+    el.style.cssText = 'position:fixed;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;';
+    document.body.appendChild(el);
+    this.audioRoot = el;
+    return el;
+  }
+
+  private attachRemoteAudio(peerId: string, stream: MediaStream): void {
+    const root = this.ensureAudioRoot();
+    let audio = this.remoteAudio.get(peerId);
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.autoplay = true;
+      audio.setAttribute('playsinline', 'true');
+      audio.setAttribute('webkit-playsinline', 'true');
+      root.appendChild(audio);
+      this.remoteAudio.set(peerId, audio);
+    }
+    if (audio.srcObject !== stream) audio.srcObject = stream;
+    audio.muted = this.deafened;
+    audio.volume = this.deafened ? 0 : 1;
+    const tryPlay = () => {
+      void audio!.play().catch((err) => {
+        console.warn('[voice] remote play blocked', peerId, err);
+        window.setTimeout(() => void audio!.play().catch(() => undefined), 300);
+      });
+    };
+    tryPlay();
+    stream.getAudioTracks().forEach((t) => {
+      t.enabled = true;
+      t.onunmute = () => tryPlay();
+    });
+  }
+
   private applyLocalTracks(): void {
     const stream = this.localStream;
     if (!stream) return;
@@ -163,14 +238,16 @@ export class VoiceRoom {
     }
   }
 
-  private async ensurePeer(peerId: string, createOffer: boolean): Promise<void> {
-    if (peerId === this.meId || !this.localStream || !this.roomId) return;
+  private async ensurePeer(peerId: string): Promise<void> {
+    if (!peerId || peerId === this.meId || !this.localStream || !this.roomId) return;
+
     let pc = this.pcs.get(peerId);
     if (!pc) {
       pc = new RTCPeerConnection(ICE);
       this.pcs.set(peerId, pc);
 
-      for (const track of this.localStream.getTracks()) {
+      // addTrack (with stream) so remote ontrack gets a proper MediaStream + MSID.
+      for (const track of this.localStream.getAudioTracks()) {
         pc.addTrack(track, this.localStream);
       }
 
@@ -180,49 +257,86 @@ export class VoiceRoom {
           type: 'voice_signal',
           room: this.roomId,
           to: peerId,
-          payload: { kind: 'ice', candidate: ev.candidate ? ev.candidate.toJSON() : null },
+          payload: {
+            kind: 'ice',
+            candidate: ev.candidate ? ev.candidate.toJSON() : null,
+          },
         });
       };
 
       pc.ontrack = (ev) => {
         const stream = ev.streams[0] || new MediaStream([ev.track]);
-        let audio = this.remoteAudio.get(peerId);
-        if (!audio) {
-          audio = new Audio();
-          audio.autoplay = true;
-          audio.setAttribute('playsinline', 'true');
-          this.remoteAudio.set(peerId, audio);
-        }
-        audio.srcObject = stream;
-        audio.muted = this.deafened;
-        void audio.play().catch(() => {
-          /* autoplay may require a prior gesture — join button counts */
-        });
+        ev.track.enabled = true;
+        this.attachRemoteAudio(peerId, stream);
+        this.onChange();
       };
 
       pc.onconnectionstatechange = () => {
-        if (pc!.connectionState === 'failed' || pc!.connectionState === 'closed') {
-          this.closePeer(peerId);
-          this.onChange();
+        const state = pc!.connectionState;
+        if (state === 'failed') {
+          try {
+            pc!.restartIce();
+          } catch {
+            /* ignore */
+          }
+        }
+        if (state === 'closed' || state === 'failed') {
+          // Keep peer listed; ICE restart may recover. Only tear down on leave/peer_left.
         }
       };
+    } else {
+      // Re-attach mic if a sender lost its track.
+      const localAudio = this.localStream.getAudioTracks()[0];
+      if (localAudio) {
+        const audioSender = pc.getSenders().find((s) => !s.track || s.track.kind === 'audio');
+        if (audioSender && audioSender.track !== localAudio) {
+          try {
+            await audioSender.replaceTrack(localAudio);
+          } catch {
+            /* ignore */
+          }
+        } else if (!audioSender) {
+          pc.addTrack(localAudio, this.localStream);
+        }
+      }
     }
 
-    if (!createOffer) return;
+    if (!this.isOfferer(peerId)) return;
+    if (this.makingOffer.get(peerId)) return;
     if (pc.signalingState !== 'stable') return;
 
+    this.makingOffer.set(peerId, true);
     try {
-      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      const offer = await pc.createOffer();
+      if (pc.signalingState !== 'stable' || !this.roomId) return;
       await pc.setLocalDescription(offer);
       this.send({
         type: 'voice_signal',
         room: this.roomId,
         to: peerId,
-        payload: { kind: 'offer', sdp: pc.localDescription!.toJSON() },
+        payload: {
+          kind: 'offer',
+          sdp: { type: pc.localDescription!.type, sdp: pc.localDescription!.sdp },
+        },
       });
     } catch (err) {
       console.warn('[voice] offer failed', err);
-      this.closePeer(peerId);
+    } finally {
+      this.makingOffer.set(peerId, false);
+    }
+  }
+
+  private async flushIce(peerId: string): Promise<void> {
+    const pc = this.pcs.get(peerId);
+    const queued = this.pendingIce.get(peerId);
+    if (!pc || !queued?.length || !pc.remoteDescription) return;
+    this.pendingIce.set(peerId, []);
+    for (const c of queued) {
+      try {
+        await pc.addIceCandidate(c);
+      } catch (err) {
+        console.warn('[voice] flush ice failed', err);
+      }
     }
   }
 
@@ -232,21 +346,31 @@ export class VoiceRoom {
     }
 
     if (payload.kind === 'offer') {
-      let pc = this.pcs.get(from);
-      if (!pc) {
-        await this.ensurePeer(from, false);
-        pc = this.pcs.get(from);
-      }
+      await this.ensurePeer(from);
+      const pc = this.pcs.get(from);
       if (!pc) return;
+
+      const polite = this.isPolite(from);
+      const offerCollision = !!this.makingOffer.get(from) || pc.signalingState !== 'stable';
+      this.ignoreOffer.set(from, !polite && offerCollision);
+      if (this.ignoreOffer.get(from)) return;
+
       try {
+        if (offerCollision) {
+          await pc.setLocalDescription({ type: 'rollback' });
+        }
         await pc.setRemoteDescription(payload.sdp);
+        await this.flushIce(from);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         this.send({
           type: 'voice_signal',
           room: this.roomId,
           to: from,
-          payload: { kind: 'answer', sdp: pc.localDescription!.toJSON() },
+          payload: {
+            kind: 'answer',
+            sdp: { type: pc.localDescription!.type, sdp: pc.localDescription!.sdp },
+          },
         });
       } catch (err) {
         console.warn('[voice] answer failed', err);
@@ -259,7 +383,10 @@ export class VoiceRoom {
       const pc = this.pcs.get(from);
       if (!pc) return;
       try {
-        await pc.setRemoteDescription(payload.sdp);
+        if (pc.signalingState === 'have-local-offer') {
+          await pc.setRemoteDescription(payload.sdp);
+          await this.flushIce(from);
+        }
       } catch (err) {
         console.warn('[voice] setRemote answer failed', err);
       }
@@ -267,12 +394,28 @@ export class VoiceRoom {
     }
 
     if (payload.kind === 'ice') {
+      if (this.ignoreOffer.get(from)) return;
       const pc = this.pcs.get(from);
-      if (!pc || !payload.candidate) return;
+      if (!payload.candidate) {
+        if (pc?.remoteDescription) {
+          try {
+            await pc.addIceCandidate(null);
+          } catch {
+            /* ignore */
+          }
+        }
+        return;
+      }
+      if (!pc || !pc.remoteDescription) {
+        const q = this.pendingIce.get(from) ?? [];
+        q.push(payload.candidate);
+        this.pendingIce.set(from, q);
+        return;
+      }
       try {
         await pc.addIceCandidate(payload.candidate);
-      } catch {
-        /* ignore late candidates */
+      } catch (err) {
+        console.warn('[voice] addIce failed', err);
       }
     }
   }
@@ -287,10 +430,14 @@ export class VoiceRoom {
       }
       this.pcs.delete(peerId);
     }
+    this.pendingIce.delete(peerId);
+    this.makingOffer.delete(peerId);
+    this.ignoreOffer.delete(peerId);
     const audio = this.remoteAudio.get(peerId);
     if (audio) {
       audio.pause();
       audio.srcObject = null;
+      audio.remove();
       this.remoteAudio.delete(peerId);
     }
   }

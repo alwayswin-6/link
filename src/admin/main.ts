@@ -665,7 +665,7 @@ function pageTitle(): { title: string; sub: string } {
     announcements: { title: 'Announcements', sub: 'Broadcast to audiences' },
     analytics: { title: 'Analytics', sub: 'Growth and activity from real data' },
     audit: { title: 'Audit Log', sub: 'Administrative history' },
-    files: { title: 'File Manager', sub: 'Upload files and share download URLs' },
+    files: { title: 'File Manager', sub: 'Share download URLs — Super Admin secret slot at /secret' },
     settings: { title: 'System Settings', sub: 'Maintenance, features, server config' },
   };
   return map[page];
@@ -696,7 +696,7 @@ function renderBody(): string {
     case 'audit':
       return renderAudit();
     case 'files':
-      return renderFilesPage();
+      return renderFilesPage({ superAdmin: session?.role === 'super_admin' });
     case 'settings':
       return renderSettings();
   }
@@ -772,7 +772,7 @@ function bindShell(): void {
   bindAnnouncements();
   bindSettings();
   bindChatPage();
-  if (page === 'files') bindFilesPage(root, toast);
+  if (page === 'files') bindFilesPage(root, toast, { superAdmin: session?.role === 'super_admin' });
 }
 
 function bindChatPage(): void {

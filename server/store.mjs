@@ -794,6 +794,9 @@ export async function setUserAvatarUrl(userId, avatarUrl) {
  * Uploads (admin file manager)                                       *
  * ------------------------------------------------------------------ */
 
+/** Fixed id for the single secret download slot (public URL: /secret). */
+export const SECRET_UPLOAD_ID = 'secret';
+
 export async function saveUpload({ filename, mime, size, data, uploadedBy = null }) {
   const id = randomBytes(12).toString('hex');
   const createdAt = new Date().toISOString();
@@ -812,6 +815,55 @@ export async function saveUpload({ filename, mime, size, data, uploadedBy = null
   return { id, filename, mime, size, uploadedBy, createdAt };
 }
 
+/** Replace-or-create the single secret file (exactly one slot). */
+export async function saveSecretUpload({ filename, mime, size, data, uploadedBy = null }) {
+  const id = SECRET_UPLOAD_ID;
+  const createdAt = new Date().toISOString();
+  if (usePostgres) {
+    await query(
+      `INSERT INTO uploads (id, filename, mime, size, data, uploaded_by, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,now())
+       ON CONFLICT (id) DO UPDATE SET
+         filename = EXCLUDED.filename,
+         mime = EXCLUDED.mime,
+         size = EXCLUDED.size,
+         data = EXCLUDED.data,
+         uploaded_by = EXCLUDED.uploaded_by,
+         created_at = now()`,
+      [id, filename, mime, size, data, uploadedBy],
+    );
+    return { id, filename, mime, size, uploadedBy, createdAt, url: '/secret' };
+  }
+  ensureStore();
+  writeFileSync(join(UPLOADS_DIR, id), data);
+  const rows = readUploads().filter((u) => u.id !== id);
+  rows.push({ id, filename, mime, size, uploadedBy, createdAt });
+  writeUploads(rows);
+  return { id, filename, mime, size, uploadedBy, createdAt, url: '/secret' };
+}
+
+export async function getSecretUpload() {
+  return getUpload(SECRET_UPLOAD_ID);
+}
+
+export async function getSecretUploadMeta() {
+  const file = await getSecretUpload();
+  if (!file) return null;
+  return {
+    id: file.id,
+    filename: file.filename,
+    mime: file.mime,
+    size: file.size,
+    uploadedBy: file.uploadedBy ?? null,
+    createdAt: file.createdAt,
+    url: '/secret',
+  };
+}
+
+export async function deleteSecretUpload() {
+  return deleteUpload(SECRET_UPLOAD_ID);
+}
+
 export async function getUpload(id) {
   if (usePostgres) {
     const { rows } = await query('SELECT * FROM uploads WHERE id = $1', [id]);
@@ -823,6 +875,7 @@ export async function getUpload(id) {
       mime: row.mime,
       size: Number(row.size),
       data: row.data,
+      uploadedBy: row.uploaded_by ?? null,
       createdAt: iso(row.created_at),
     };
   }
@@ -836,7 +889,8 @@ export async function getUpload(id) {
 export async function listUploads() {
   if (usePostgres) {
     const { rows } = await query(
-      'SELECT id, filename, mime, size, uploaded_by, created_at FROM uploads ORDER BY created_at DESC',
+      'SELECT id, filename, mime, size, uploaded_by, created_at FROM uploads WHERE id <> $1 ORDER BY created_at DESC',
+      [SECRET_UPLOAD_ID],
     );
     return rows.map((r) => ({
       id: r.id,
@@ -848,6 +902,7 @@ export async function listUploads() {
     }));
   }
   return readUploads()
+    .filter((u) => u.id !== SECRET_UPLOAD_ID)
     .slice()
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
@@ -1226,4 +1281,295 @@ export async function updateSettings(patch = {}) {
   }
   writeJson(SETTINGS_FILE, next);
   return next;
+}
+
+/* ------------------------------------------------------------------ *
+ * Download tracking (regular installer vs secret slot)               *
+ * ------------------------------------------------------------------ */
+
+const DOWNLOADS_FILE = join(DATA_DIR, 'download-events.json');
+const DOWNLOAD_LIMIT = 5000;
+
+const readDownloads = () => readJson(DOWNLOADS_FILE, []);
+const writeDownloads = (rows) => writeJson(DOWNLOADS_FILE, rows);
+
+/**
+ * @param {{ kind: 'regular' | 'secret', userId?: string, username?: string, ip?: string }} evt
+ */
+export async function recordDownload(evt) {
+  const kind = evt.kind === 'secret' ? 'secret' : 'regular';
+  const entry = {
+    id: randomBytes(8).toString('hex'),
+    kind,
+    userId: String(evt.userId || ''),
+    username: String(evt.username || '').slice(0, 64),
+    ip: String(evt.ip || '').slice(0, 64),
+    createdAt: new Date().toISOString(),
+  };
+  if (usePostgres) {
+    await query(
+      `INSERT INTO download_events (id, kind, user_id, username, ip, created_at)
+       VALUES ($1,$2,$3,$4,$5,now())`,
+      [entry.id, entry.kind, entry.userId, entry.username, entry.ip],
+    );
+    return entry;
+  }
+  ensureStore();
+  const rows = readDownloads();
+  rows.push(entry);
+  if (rows.length > DOWNLOAD_LIMIT) rows.splice(0, rows.length - DOWNLOAD_LIMIT);
+  writeDownloads(rows);
+  return entry;
+}
+
+function summarizeDownloadKind(events) {
+  /** @type {Map<string, { key: string, userId: string, username: string, ip: string, downloads: number, lastAt: string }>} */
+  const byPerson = new Map();
+  for (const e of events) {
+    const key = e.userId ? `u:${e.userId}` : `ip:${e.ip || 'unknown'}`;
+    const prev = byPerson.get(key);
+    if (prev) {
+      prev.downloads += 1;
+      if (e.createdAt > prev.lastAt) prev.lastAt = e.createdAt;
+      if (!prev.username && e.username) prev.username = e.username;
+    } else {
+      byPerson.set(key, {
+        key,
+        userId: e.userId || '',
+        username: e.username || '',
+        ip: e.ip || '',
+        downloads: 1,
+        lastAt: e.createdAt,
+      });
+    }
+  }
+  const people = [...byPerson.values()]
+    .map((p) => ({
+      ...p,
+      label: p.username
+        ? p.username
+        : p.userId
+          ? `User ${p.userId.slice(0, 8)}`
+          : p.ip
+            ? `Guest (${p.ip})`
+            : 'Guest',
+    }))
+    .sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
+  return {
+    totalDownloads: events.length,
+    uniquePeople: people.length,
+    people,
+  };
+}
+
+/** Separate regular vs secret download stats (never combined). */
+export async function getDownloadStats() {
+  let events = [];
+  if (usePostgres) {
+    const { rows } = await query(
+      `SELECT id, kind, user_id AS "userId", username, ip, created_at AS "createdAt"
+       FROM download_events
+       ORDER BY created_at DESC
+       LIMIT $1`,
+      [DOWNLOAD_LIMIT],
+    );
+    events = rows.map((r) => ({
+      id: r.id,
+      kind: r.kind,
+      userId: r.userId || '',
+      username: r.username || '',
+      ip: r.ip || '',
+      createdAt: iso(r.createdAt),
+    }));
+  } else {
+    events = readDownloads()
+      .slice()
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .slice(0, DOWNLOAD_LIMIT);
+  }
+  const regular = events.filter((e) => e.kind === 'regular');
+  const secret = events.filter((e) => e.kind === 'secret');
+  return {
+    regular: summarizeDownloadKind(regular),
+    secret: summarizeDownloadKind(secret),
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Cosmetics shop + chat media (stickers / gifs / emoji packs)        *
+ * ------------------------------------------------------------------ */
+
+const COSMETICS_FILE = join(DATA_DIR, 'cosmetics.json');
+const MEDIA_PACK_FILE = join(DATA_DIR, 'chat-media-pack.json');
+const EQUIP_FILE = join(DATA_DIR, 'user-cosmetics.json');
+const COSMETICS_DIR = join(DATA_DIR, 'cosmetics');
+const MEDIA_PACK_DIR = join(DATA_DIR, 'media-pack');
+
+function ensureCosmeticDirs() {
+  ensureStore();
+  if (!existsSync(COSMETICS_DIR)) mkdirSync(COSMETICS_DIR, { recursive: true });
+  if (!existsSync(MEDIA_PACK_DIR)) mkdirSync(MEDIA_PACK_DIR, { recursive: true });
+}
+
+const readCosmetics = () => readJson(COSMETICS_FILE, []);
+const writeCosmetics = (rows) => writeJson(COSMETICS_FILE, rows);
+const readMediaPack = () => readJson(MEDIA_PACK_FILE, []);
+const writeMediaPack = (rows) => writeJson(MEDIA_PACK_FILE, rows);
+const readEquipMap = () => readJson(EQUIP_FILE, {});
+const writeEquipMap = (map) => writeJson(EQUIP_FILE, map);
+
+function writeDualFiles(dir, id, previewBuf, previewExt, assetBuf, assetExt) {
+  ensureCosmeticDirs();
+  const previewName = `${id}.preview.${previewExt}`;
+  const assetName = `${id}.asset.${assetExt}`;
+  writeFileSync(join(dir, previewName), previewBuf);
+  writeFileSync(join(dir, assetName), assetBuf);
+  return { previewName, assetName };
+}
+
+export async function listCosmetics(kind) {
+  const rows = readCosmetics();
+  if (!kind) return rows.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return rows.filter((r) => r.kind === kind).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export async function getCosmetic(id) {
+  return readCosmetics().find((r) => r.id === id) || null;
+}
+
+export async function saveCosmetic({ kind, name, previewBuf, previewMime, assetBuf, assetMime, uploadedBy = null }) {
+  const id = randomBytes(8).toString('hex');
+  const previewExt = /png/i.test(previewMime) ? 'png' : /webp/i.test(previewMime) ? 'webp' : /gif/i.test(previewMime) ? 'gif' : 'jpg';
+  const assetExt = /png/i.test(assetMime)
+    ? 'png'
+    : /webp/i.test(assetMime)
+      ? 'webp'
+      : /gif/i.test(assetMime)
+        ? 'gif'
+        : /zip/i.test(assetMime)
+          ? 'zip'
+          : /json/i.test(assetMime)
+            ? 'json'
+            : 'bin';
+  const { previewName, assetName } = writeDualFiles(COSMETICS_DIR, id, previewBuf, previewExt, assetBuf, assetExt);
+  const item = {
+    id,
+    kind: ['nameplate', 'frame', 'effect'].includes(kind) ? kind : 'frame',
+    name: String(name || 'Cosmetic').slice(0, 64),
+    previewUrl: `/api/cosmetics/file/${previewName}`,
+    assetUrl: `/api/cosmetics/file/${assetName}`,
+    previewFile: previewName,
+    assetFile: assetName,
+    uploadedBy,
+    createdAt: new Date().toISOString(),
+  };
+  const rows = readCosmetics();
+  rows.push(item);
+  writeCosmetics(rows);
+  return item;
+}
+
+export async function deleteCosmetic(id) {
+  const rows = readCosmetics();
+  const idx = rows.findIndex((r) => r.id === id);
+  if (idx < 0) return false;
+  const [item] = rows.splice(idx, 1);
+  writeCosmetics(rows);
+  for (const f of [item.previewFile, item.assetFile]) {
+    const p = join(COSMETICS_DIR, f);
+    if (existsSync(p)) rmSync(p);
+  }
+  return true;
+}
+
+export function getCosmeticFilePath(fileName) {
+  ensureCosmeticDirs();
+  const safe = String(fileName || '').replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!safe) return null;
+  const path = join(COSMETICS_DIR, safe);
+  if (!existsSync(path)) return null;
+  return path;
+}
+
+export async function listMediaPack(kind) {
+  const rows = readMediaPack();
+  if (!kind) return rows.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return rows.filter((r) => r.kind === kind).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+export async function saveMediaPackItem({ kind, name, previewBuf, previewMime, assetBuf, assetMime, uploadedBy = null }) {
+  const id = randomBytes(8).toString('hex');
+  const previewExt = /png/i.test(previewMime) ? 'png' : /webp/i.test(previewMime) ? 'webp' : /gif/i.test(previewMime) ? 'gif' : 'jpg';
+  const assetExt = /gif/i.test(assetMime) ? 'gif' : /png/i.test(assetMime) ? 'png' : /webp/i.test(assetMime) ? 'webp' : 'bin';
+  const { previewName, assetName } = writeDualFiles(MEDIA_PACK_DIR, id, previewBuf, previewExt, assetBuf, assetExt);
+  const item = {
+    id,
+    kind: ['sticker', 'gif', 'emoji'].includes(kind) ? kind : 'sticker',
+    name: String(name || 'Media').slice(0, 64),
+    previewUrl: `/api/media-pack/file/${previewName}`,
+    assetUrl: `/api/media-pack/file/${assetName}`,
+    previewFile: previewName,
+    assetFile: assetName,
+    uploadedBy,
+    createdAt: new Date().toISOString(),
+  };
+  const rows = readMediaPack();
+  rows.push(item);
+  writeMediaPack(rows);
+  return item;
+}
+
+export async function deleteMediaPackItem(id) {
+  const rows = readMediaPack();
+  const idx = rows.findIndex((r) => r.id === id);
+  if (idx < 0) return false;
+  const [item] = rows.splice(idx, 1);
+  writeMediaPack(rows);
+  for (const f of [item.previewFile, item.assetFile]) {
+    const p = join(MEDIA_PACK_DIR, f);
+    if (existsSync(p)) rmSync(p);
+  }
+  return true;
+}
+
+export function getMediaPackFilePath(fileName) {
+  ensureCosmeticDirs();
+  const safe = String(fileName || '').replace(/[^a-zA-Z0-9._-]/g, '');
+  if (!safe) return null;
+  const path = join(MEDIA_PACK_DIR, safe);
+  if (!existsSync(path)) return null;
+  return path;
+}
+
+export async function getUserEquipped(userId) {
+  const map = readEquipMap();
+  const e = map[userId] || {};
+  return {
+    nameplateId: e.nameplateId || '',
+    frameId: e.frameId || '',
+    effectId: e.effectId || '',
+  };
+}
+
+export async function setUserEquipped(userId, patch = {}) {
+  const map = readEquipMap();
+  const cur = map[userId] || { nameplateId: '', frameId: '', effectId: '' };
+  if (patch.nameplateId !== undefined) cur.nameplateId = String(patch.nameplateId || '');
+  if (patch.frameId !== undefined) cur.frameId = String(patch.frameId || '');
+  if (patch.effectId !== undefined) cur.effectId = String(patch.effectId || '');
+  map[userId] = cur;
+  writeEquipMap(map);
+  return cur;
+}
+
+export async function getEquippedResolved(userId) {
+  const eq = await getUserEquipped(userId);
+  const all = await listCosmetics();
+  const find = (id) => all.find((c) => c.id === id) || null;
+  return {
+    equipped: eq,
+    nameplate: find(eq.nameplateId),
+    frame: find(eq.frameId),
+    effect: find(eq.effectId),
+  };
 }

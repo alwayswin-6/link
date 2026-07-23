@@ -15,6 +15,7 @@ import {
   openHowToPlay,
   openMatches,
   openInventory,
+  openShop,
   openModerationPage,
   hidePageView,
   setPath,
@@ -42,6 +43,7 @@ function ensureChat(): ChatApp {
 function showHomeShell(): void {
   dashboard.classList.remove('is-chat');
   dashMain.classList.remove('is-chat');
+  chatApp?.layout();
 }
 
 function showChat(updateUrl = true): void {
@@ -49,6 +51,7 @@ function showChat(updateUrl = true): void {
   hidePageView();
   dashboard.classList.add('is-chat');
   dashMain.classList.add('is-chat');
+  chatApp?.layout();
   setActiveNav('chat');
   if (updateUrl) setPath('/chat');
 }
@@ -86,6 +89,10 @@ function openRoute(id: string): void {
     case 'inventory':
       setActiveNav('inventory');
       openInventory();
+      return;
+    case 'shop':
+      setActiveNav('shop');
+      openShop();
       return;
     case 'profile':
       setActiveNav('profile');
@@ -146,6 +153,11 @@ function handleNav(nav: string | undefined, e?: Event): void {
 
   if (nav === 'inventory') {
     openInventory();
+    return;
+  }
+
+  if (nav === 'shop') {
+    openShop();
     return;
   }
 

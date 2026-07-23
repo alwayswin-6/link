@@ -1,3 +1,5 @@
+import { saveLocalEquipped, loadLocalEquipped, nameplateHtml } from './cosmetics';
+
 const TOKEN_KEY = 'link-auth-token';
 const API = '/api/auth';
 const DEFAULT_AVATAR = '/position/defult.png';
@@ -216,6 +218,60 @@ export function closeAuthModal(): void {
   document.querySelector<HTMLDivElement>('#auth-overlay')!.hidden = true;
 }
 
+/** Apply equipped frame / effect / nameplate to the topbar chip (Discord-style). */
+async function applyDashCosmetics(user: AuthUser | null): Promise<void> {
+  const shell = document.querySelector<HTMLElement>('#dash-user-cos');
+  const nameEl = document.querySelector<HTMLElement>('.dash-user-name');
+  if (!shell || !nameEl) return;
+
+  shell.querySelectorAll('.cos-frame, .cos-effect').forEach((n) => n.remove());
+
+  if (!user) {
+    nameEl.textContent = 'PLAYER';
+    return;
+  }
+
+  const label = user.username.toUpperCase();
+  let frameUrl = '';
+  let effectUrl = '';
+  let nameplateUrl = '';
+
+  try {
+    const t = token();
+    if (t) {
+      const res = await fetch('/api/cosmetics/me', { headers: { Authorization: `Bearer ${t}` } });
+      const data = await res.json().catch(() => ({}));
+      if (data.ok) {
+        if (data.equipped) saveLocalEquipped(data.equipped);
+        frameUrl = data.frame?.previewUrl || '';
+        effectUrl = data.effect?.previewUrl || '';
+        nameplateUrl = data.nameplate?.previewUrl || '';
+      }
+    }
+  } catch {
+    const local = loadLocalEquipped();
+    void local;
+  }
+
+  if (effectUrl) {
+    const img = document.createElement('img');
+    img.className = 'cos-effect';
+    img.alt = '';
+    img.draggable = false;
+    img.src = effectUrl;
+    shell.prepend(img);
+  }
+  if (frameUrl) {
+    const img = document.createElement('img');
+    img.className = 'cos-frame';
+    img.alt = '';
+    img.draggable = false;
+    img.src = frameUrl;
+    shell.appendChild(img);
+  }
+  nameEl.innerHTML = nameplateHtml(label, nameplateUrl || undefined);
+}
+
 function updateChrome(user: AuthUser | null): void {
   const profileName = document.querySelector<HTMLElement>('.dash-profile-name');
   const userName = document.querySelector<HTMLElement>('.dash-user-name');
@@ -226,7 +282,7 @@ function updateChrome(user: AuthUser | null): void {
   const avatarImg = document.querySelector<HTMLImageElement>('.dash-user-avatar img');
 
   if (profileName) profileName.textContent = user ? user.username.toUpperCase() : 'GUEST';
-  if (userName) userName.textContent = user ? user.username.toUpperCase() : 'PLAYER';
+  if (userName && !user) userName.textContent = 'PLAYER';
   if (profileRank) {
     const rankText = user ? `RANK #${user.rank ?? 1}` : 'UNRANKED';
     const iconNode = profileRank.querySelector('svg');
@@ -254,6 +310,8 @@ function updateChrome(user: AuthUser | null): void {
     userChip.dataset.authed = user ? '1' : '0';
     userChip.title = user ? user.email : '';
   }
+
+  void applyDashCosmetics(user);
 
   let adminBadge = document.querySelector<HTMLButtonElement>('#auth-admin-badge');
   if (user?.role === 'admin') {
@@ -520,6 +578,10 @@ export async function initAuth(onChange?: (user: AuthUser | null) => void): Prom
     document.dispatchEvent(new CustomEvent('link:auth-changed', { detail: user }));
     onChange?.(user);
   };
+
+  document.addEventListener('link:cosmetics-changed', () => {
+    void applyDashCosmetics(currentUser);
+  });
 
   const host = document.querySelector('#dashboard') ?? document.body;
   host.insertAdjacentHTML('beforeend', modalHtml());

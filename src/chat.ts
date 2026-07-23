@@ -3,6 +3,11 @@
 import { getAuthToken, openAuthModal } from './auth';
 import { showToast } from './ui';
 import { VoiceRoom, voiceRoomKey } from './voice';
+import {
+  cosmeticAvatarShell,
+  nameplateHtml,
+  type MediaItem,
+} from './cosmetics';
 
 export type ChatKind = 'group' | 'dm';
 export type Delivery = 'sending' | 'sent' | 'delivered';
@@ -10,12 +15,16 @@ export type Delivery = 'sending' | 'sent' | 'delivered';
 interface Msg {
   id: string;
   clientId?: string;
+  from?: string;
   mine: boolean;
   author?: string;
   text: string;
   imageUrl?: string;
   audioUrl?: string;
+  stickerUrl?: string;
+  gifUrl?: string;
   durationMs?: number;
+  replyTo?: { id: string; text: string; fromName: string };
   ts: number;
   system?: boolean;
   delivery?: Delivery;
@@ -56,7 +65,10 @@ interface WireMessage {
   text: string;
   imageUrl?: string;
   audioUrl?: string;
+  stickerUrl?: string;
+  gifUrl?: string;
   durationMs?: number;
+  replyTo?: { id: string; text: string; fromName: string };
   ts: number;
 }
 interface WireAck {
@@ -229,17 +241,35 @@ export function chatRoomHTML(): string {
         <span id="chat-typing-label">typing…</span>
       </div>
       <footer class="chat-composer">
-        <button type="button" class="chat-tool" id="chat-emoji" title="Emoji">${icons.emoji()}</button>
-        <button type="button" class="chat-tool" id="chat-image" title="Send image">${icons.image()}</button>
-        <button type="button" class="chat-tool chat-mic" id="chat-voice-msg" title="Record voice message">${icons.mic()}</button>
-        <input type="file" id="chat-image-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
-        <div class="chat-input-wrap">
-          <textarea id="chat-input" rows="1" placeholder="Message…" aria-label="Message input"></textarea>
+        <div class="chat-reply-bar" id="chat-reply-bar" hidden>
+          <div class="chat-reply-bar-body">
+            <span class="chat-reply-bar-label">Replying to <strong id="chat-reply-name"></strong></span>
+            <span class="chat-reply-bar-text" id="chat-reply-snip"></span>
+          </div>
+          <button type="button" class="chat-tool" id="chat-reply-cancel" title="Cancel reply">${icons.close()}</button>
         </div>
-        <button type="button" class="chat-send" id="chat-send" title="Send" aria-label="Send">${icons.send()}</button>
+        <div class="chat-composer-row">
+          <button type="button" class="chat-tool" id="chat-emoji" title="Emoji & stickers">${icons.emoji()}</button>
+          <button type="button" class="chat-tool" id="chat-image" title="Send image">${icons.image()}</button>
+          <button type="button" class="chat-tool chat-mic" id="chat-voice-msg" title="Record voice message">${icons.mic()}</button>
+          <input type="file" id="chat-image-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+          <div class="chat-input-wrap">
+            <textarea id="chat-input" rows="1" placeholder="Message…" aria-label="Message input"></textarea>
+          </div>
+          <button type="button" class="chat-send" id="chat-send" title="Send" aria-label="Send">${icons.send()}</button>
+        </div>
       </footer>
       <div class="chat-emoji-panel" id="chat-emoji-panel" hidden>
-        ${EMOJIS.map((e) => `<button type="button" class="chat-emoji-btn" data-emoji="${e}">${e}</button>`).join('')}
+        <div class="chat-media-tabs" id="chat-media-tabs">
+          <button type="button" class="chat-media-tab active" data-media-tab="emoji">Emoji</button>
+          <button type="button" class="chat-media-tab" data-media-tab="sticker">Stickers</button>
+          <button type="button" class="chat-media-tab" data-media-tab="gif">GIFs</button>
+        </div>
+        <div class="chat-media-pane" id="chat-media-emoji">
+          ${EMOJIS.map((e) => `<button type="button" class="chat-emoji-btn" data-emoji="${e}">${e}</button>`).join('')}
+        </div>
+        <div class="chat-media-pane" id="chat-media-sticker" hidden></div>
+        <div class="chat-media-pane" id="chat-media-gif" hidden></div>
       </div>
     </div>
 
@@ -331,7 +361,13 @@ export class ChatApp {
   private searchPeople: WireSearchResults['people'] = [];
   private searchGroups: WireSearchResults['groups'] = [];
   private searchTimer = 0;
-  private infoOpen = true;
+  private infoOpen = typeof window !== 'undefined' ? window.innerWidth >= 1100 : true;
+  private infoUserId: string | null = null;
+  private replyTo: { id: string; text: string; fromName: string } | null = null;
+  private cosmeticsCache = new Map<string, { frameUrl?: string; effectUrl?: string; nameplateUrl?: string }>();
+  private mediaStickers: MediaItem[] = [];
+  private mediaGifs: MediaItem[] = [];
+  private mediaTab: 'emoji' | 'sticker' | 'gif' = 'emoji';
   private joined = false;
   private typingTimers = new Map<string, number>();
   private lastTypingSent = 0;
@@ -344,6 +380,7 @@ export class ChatApp {
   private recordTimer = 0;
   private voiceRecording = false;
   private pendingVoice: { blob: Blob; durationMs: number; mime: string } | null = null;
+  private syncViewport: (() => void) | null = null;
   private voice = new VoiceRoom(
     (obj) => this.send(obj),
     () => {
@@ -447,16 +484,22 @@ export class ChatApp {
         this.names.set(g.id, g.name);
         if (!this.messages.has(g.id)) this.messages.set(g.id, []);
       }
+      // Transcripts come from the server archive — never localStorage.
       this.messages.set(GLOBAL, data.history.map((m) => this.toMsg(m)));
       if (data.history.length) this.lastTs.set(GLOBAL, data.history[data.history.length - 1].ts);
+      this.loadedHistory.clear();
       this.loadedHistory.add(GLOBAL);
+      if (this.activeId !== GLOBAL) {
+        this.send({ type: 'history', to: this.activeId });
+      }
       this.render();
     } else if (data.type === 'presence') {
       this.online = new Map(data.users.map((u) => [u.id, u.username]));
       for (const u of data.users) this.names.set(u.id, u.username);
       this.renderList();
-      this.renderHead();
-      this.renderInfo();
+      this.patchHeadStatus();
+      // Avoid full Details rebuild on every presence pulse (major flicker source).
+      if (this.infoOpen) this.patchInfoPresence();
     } else if (data.type === 'message') {
       this.names.set(data.from, data.fromName);
       const convId = this.convIdFor(data);
@@ -464,26 +507,35 @@ export class ChatApp {
       const mine = this.me?.id === data.from;
       const byClient =
         mine && data.clientId ? arr.findIndex((m) => m.clientId === data.clientId || m.id === data.clientId) : -1;
+      let updated: Msg | null = null;
       if (byClient >= 0) {
         arr[byClient] = {
           ...arr[byClient],
           id: data.id,
+          from: data.from,
           delivery: arr[byClient].delivery === 'delivered' ? 'delivered' : 'sent',
           text: data.text || arr[byClient].text,
           imageUrl: data.imageUrl ?? arr[byClient].imageUrl,
           audioUrl: data.audioUrl ?? arr[byClient].audioUrl,
+          stickerUrl: data.stickerUrl ?? arr[byClient].stickerUrl,
+          gifUrl: data.gifUrl ?? arr[byClient].gifUrl,
+          replyTo: data.replyTo ?? arr[byClient].replyTo,
           durationMs: data.durationMs ?? arr[byClient].durationMs,
           ts: data.ts,
         };
+        updated = arr[byClient];
       } else if (!arr.some((m) => m.id === data.id)) {
-        arr.push(this.toMsg(data, mine ? 'sent' : undefined));
+        updated = this.toMsg(data, mine ? 'sent' : undefined);
+        arr.push(updated);
       }
       this.messages.set(convId, arr);
       this.lastTs.set(convId, data.ts);
-      if (convId === this.activeId) this.renderMessages();
-      else if (!mine) this.unread.set(convId, (this.unread.get(convId) ?? 0) + 1);
+      if (convId === this.activeId && updated) {
+        if (byClient >= 0) this.patchBubble(updated);
+        else this.appendBubble(updated, true);
+      } else if (!mine) this.unread.set(convId, (this.unread.get(convId) ?? 0) + 1);
       this.clearTyping(convId);
-      this.renderList();
+      this.patchConvPreview(convId);
       if (!mine) this.send({ type: 'receipt', id: data.id, status: 'delivered' });
     } else if (data.type === 'message_ack') {
       let found = false;
@@ -501,6 +553,7 @@ export class ChatApp {
           ts: data.ts || arr[idx].ts,
         };
         this.messages.set(convId, arr);
+        if (convId === this.activeId) this.patchBubble(arr[idx]);
         return true;
       };
       const preferred =
@@ -515,8 +568,7 @@ export class ChatApp {
         }
       }
       if (found) {
-        if (this.activeId === preferred || this.messages.has(this.activeId)) this.renderMessages();
-        this.renderList();
+        /* ack only updates ticks — no sidebar rebuild */
       }
     } else if (data.type === 'receipt') {
       for (const [convId, arr] of this.messages) {
@@ -524,7 +576,7 @@ export class ChatApp {
         if (idx < 0) continue;
         arr[idx] = { ...arr[idx], delivery: 'delivered' };
         this.messages.set(convId, arr);
-        if (convId === this.activeId) this.renderMessages();
+        if (convId === this.activeId) this.patchBubble(arr[idx]);
         break;
       }
     } else if (data.type === 'typing') {
@@ -587,12 +639,16 @@ export class ChatApp {
     return {
       id: m.id,
       clientId: m.clientId,
+      from: m.from,
       mine: this.me?.id === m.from,
       author: m.fromName,
       text: m.text || '',
       imageUrl: m.imageUrl,
       audioUrl: m.audioUrl,
+      stickerUrl: m.stickerUrl,
+      gifUrl: m.gifUrl,
       durationMs: m.durationMs,
+      replyTo: m.replyTo,
       ts: m.ts,
       delivery: this.me?.id === m.from ? delivery || 'delivered' : undefined,
     };
@@ -617,6 +673,11 @@ export class ChatApp {
       this.renderGate();
       if (!this.joined) this.renderGuest();
       else this.render();
+    });
+
+    document.addEventListener('link:cosmetics-changed', () => {
+      if (this.me?.id) this.cosmeticsCache.delete(this.me.id);
+      if (this.infoOpen) this.renderInfo();
     });
 
     this.el('#chat-search').addEventListener('input', (e) => {
@@ -665,14 +726,36 @@ export class ChatApp {
     this.el('#chat-emoji').addEventListener('click', () => {
       const panel = this.el('#chat-emoji-panel');
       panel.hidden = !panel.hidden;
+      if (!panel.hidden) void this.ensureMediaPack();
+    });
+    this.el('#chat-media-tabs')?.addEventListener('click', (e) => {
+      const tab = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-media-tab]');
+      if (!tab?.dataset.mediaTab) return;
+      this.mediaTab = tab.dataset.mediaTab as 'emoji' | 'sticker' | 'gif';
+      this.root.querySelectorAll('.chat-media-tab').forEach((b) => {
+        b.classList.toggle('active', b === tab);
+      });
+      this.el('#chat-media-emoji').hidden = this.mediaTab !== 'emoji';
+      this.el('#chat-media-sticker').hidden = this.mediaTab !== 'sticker';
+      this.el('#chat-media-gif').hidden = this.mediaTab !== 'gif';
     });
     this.el('#chat-emoji-panel').addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.chat-emoji-btn');
-      if (!btn) return;
-      input.value += btn.dataset.emoji ?? '';
-      input.focus();
-      this.autoGrow();
+      const t = e.target as HTMLElement;
+      const emojiBtn = t.closest<HTMLButtonElement>('.chat-emoji-btn');
+      if (emojiBtn) {
+        input.value += emojiBtn.dataset.emoji ?? '';
+        input.focus();
+        this.autoGrow();
+        return;
+      }
+      const mediaBtn = t.closest<HTMLButtonElement>('[data-media-url]');
+      if (mediaBtn?.dataset.mediaUrl) {
+        const kind = mediaBtn.dataset.mediaKind || 'sticker';
+        void this.sendMediaChip(kind === 'gif' ? 'gif' : 'sticker', mediaBtn.dataset.mediaUrl);
+      }
     });
+
+    this.el('#chat-reply-cancel')?.addEventListener('click', () => this.clearReply());
 
     this.el('#chat-image').addEventListener('click', () => this.el<HTMLInputElement>('#chat-image-input').click());
     this.el('#chat-image-input').addEventListener('change', async () => {
@@ -687,9 +770,53 @@ export class ChatApp {
       void this.toggleVoiceMessage();
     });
 
-    this.el('#chat-info-close').addEventListener('click', () => this.toggleInfo(false));
+    this.el('#chat-info-close').addEventListener('click', () => {
+      if (this.infoUserId) {
+        this.infoUserId = null;
+        this.renderInfo();
+        return;
+      }
+      this.toggleInfo(false);
+    });
+    this.el('#chat-info-body').addEventListener('click', (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>('[data-user-id]');
+      if (row?.dataset.userId) {
+        this.infoUserId = row.dataset.userId;
+        void this.renderInfo();
+        return;
+      }
+      if ((e.target as HTMLElement).closest('#chat-info-back-members')) {
+        this.infoUserId = null;
+        this.renderInfo();
+      }
+      if ((e.target as HTMLElement).closest('#chat-info-dm')) {
+        const id = this.infoUserId;
+        if (id && id !== this.me?.id) {
+          this.infoUserId = null;
+          this.select(id);
+        }
+      }
+    });
+    this.el('#chat-messages').addEventListener('click', (e) => {
+      const replyBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-reply-id]');
+      if (!replyBtn?.dataset.replyId) return;
+      const id = replyBtn.dataset.replyId;
+      const arr = this.messages.get(this.activeId) ?? [];
+      const msg = arr.find((m) => m.id === id);
+      if (!msg) return;
+      this.setReply({
+        id: msg.id,
+        text: msg.text || (msg.stickerUrl || msg.gifUrl || msg.imageUrl ? 'Attachment' : ''),
+        fromName: msg.author || (msg.mine ? this.me?.username || 'You' : 'Player'),
+      });
+    });
     this.root.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
+      // Dimmed overlay (::after) — target is the room root itself
+      if (t === this.root && this.infoOpen) {
+        this.toggleInfo(false);
+        return;
+      }
       if (t.closest('#chat-info-toggle')) this.toggleInfo();
       if (t.closest('#chat-voice-call')) void this.toggleVoice();
       if (t.closest('#chat-voice-mute')) this.voice.toggleMute();
@@ -698,6 +825,8 @@ export class ChatApp {
       if (t.closest('#chat-voice-cancel')) this.cancelPendingVoice();
       if (!t.closest('#chat-emoji') && !t.closest('#chat-emoji-panel')) this.el('#chat-emoji-panel').hidden = true;
     });
+
+    this.bindViewport();
 
     this.el('#chat-new-group').addEventListener('click', () => this.openGroupModal(true));
     this.el('#chat-group-close').addEventListener('click', () => this.openGroupModal(false));
@@ -881,9 +1010,12 @@ export class ChatApp {
   private select(id: string): void {
     this.activeId = id;
     this.unread.set(id, 0);
+    this.infoUserId = null;
+    this.clearReply();
     this.root.classList.add('thread-open');
     this.root.classList.remove('list-open');
     this.clearTyping(id);
+    if (window.innerWidth < 860) this.toggleInfo(false);
     if (id === GLOBAL || isGroupId(id)) {
       if (this.voice.connected) void this.voice.leave();
     }
@@ -898,6 +1030,7 @@ export class ChatApp {
   private pushOptimistic(partial: Omit<Msg, 'mine' | 'author' | 'delivery'> & { delivery?: Delivery }): void {
     const msg: Msg = {
       ...partial,
+      from: this.me?.id,
       mine: true,
       author: this.me?.username,
       delivery: partial.delivery || 'sending',
@@ -906,7 +1039,7 @@ export class ChatApp {
     arr.push(msg);
     this.messages.set(this.activeId, arr);
     this.lastTs.set(this.activeId, msg.ts);
-    this.renderMessages();
+    this.appendBubble(msg, true);
     this.renderList();
   }
 
@@ -928,9 +1061,17 @@ export class ChatApp {
     }
     const clientId = newClientId();
     const ts = Date.now();
-    this.pushOptimistic({ id: clientId, clientId, text, ts });
-    this.send({ type: 'message', to: this.activeId, text, clientId });
+    const replyTo = this.replyTo ? { ...this.replyTo } : undefined;
+    this.pushOptimistic({ id: clientId, clientId, text, ts, replyTo });
+    this.send({
+      type: 'message',
+      to: this.activeId,
+      text,
+      clientId,
+      replyTo,
+    });
     input.value = '';
+    this.clearReply();
     this.autoGrow();
     this.el('#chat-emoji-panel').hidden = true;
   }
@@ -1235,8 +1376,7 @@ export class ChatApp {
     this.renderVoiceDock();
     this.renderMessages();
     this.renderInfo();
-    const collapse = !this.infoOpen || window.innerWidth < 1100;
-    this.root.classList.toggle('info-collapsed', collapse);
+    this.root.classList.toggle('info-collapsed', !this.infoOpen);
   }
 
   private renderGuest(): void {
@@ -1246,6 +1386,26 @@ export class ChatApp {
     this.el('#chat-thread-head').innerHTML = '';
     this.el('#chat-messages').innerHTML = '';
     this.el('#chat-info-body').innerHTML = '';
+  }
+
+  /** Update one conversation row in place (avoids full list re-render flicker). */
+  private patchConvPreview(convId: string): void {
+    const list = this.el('#chat-conv-list');
+    const btn = list.querySelector<HTMLElement>(`.chat-conv[data-id="${CSS.escape(convId)}"]`);
+    if (!btn) {
+      this.renderList();
+      return;
+    }
+    const preview = btn.querySelector('.chat-conv-preview');
+    const time = btn.querySelector('.chat-conv-time');
+    const flags = btn.querySelector('.chat-conv-flags');
+    if (preview) preview.textContent = this.lastPreview(convId);
+    const ts = this.lastTs.get(convId);
+    if (time) time.textContent = ts ? fmtTime(ts) : '';
+    const unread = this.unread.get(convId) ?? 0;
+    if (flags) {
+      flags.innerHTML = unread > 0 ? `<span class="chat-unread">${unread > 99 ? '99+' : unread}</span>` : '';
+    }
   }
 
   private lastPreview(convId: string): string {
@@ -1357,9 +1517,46 @@ export class ChatApp {
       </div>
     `;
     this.el('#chat-back-list')?.addEventListener('click', () => {
+      this.toggleInfo(false);
       this.root.classList.remove('thread-open');
       this.root.classList.add('list-open');
     });
+  }
+
+  /** Keep the composer visible when the mobile keyboard opens. */
+  private bindViewport(): void {
+    const sync = () => {
+      const dash = this.root.closest('.dash') as HTMLElement | null;
+      if (!dash?.classList.contains('is-chat')) {
+        this.root.style.height = '';
+        return;
+      }
+      const vv = window.visualViewport;
+      const header = document.querySelector('.dash-header') as HTMLElement | null;
+      const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+      if (!vv) {
+        this.root.style.height = '';
+        return;
+      }
+      // Only pin height while the soft keyboard (or browser chrome) shrinks the visual viewport.
+      const shrunk = vv.height < window.innerHeight - 60;
+      if (!shrunk) {
+        this.root.style.height = '';
+        return;
+      }
+      const h = Math.max(220, Math.round(vv.height - Math.max(0, headerBottom - vv.offsetTop)));
+      this.root.style.height = `${h}px`;
+    };
+    this.syncViewport = sync;
+    sync();
+    window.visualViewport?.addEventListener('resize', sync);
+    window.visualViewport?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+  }
+
+  /** Called when entering/leaving chat view. */
+  layout(): void {
+    this.syncViewport?.();
   }
 
   private renderMessages(): void {
@@ -1369,6 +1566,7 @@ export class ChatApp {
     }
     const box = this.el('#chat-messages');
     const arr = this.messages.get(this.activeId) ?? [];
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
     const parts: string[] = ['<div class="chat-msg-spacer"></div>'];
     if (arr.length === 0) {
       parts.push(
@@ -1387,41 +1585,269 @@ export class ChatApp {
           parts.push(`<div class="chat-system">${escapeHtml(m.text)}</div>`);
           continue;
         }
-        const showAuthor = (this.activeId === GLOBAL || isGroupId(this.activeId)) && !m.mine;
-        const pending = m.mine && m.delivery && m.delivery !== 'delivered';
-        parts.push(`
-          <article class="chat-bubble ${m.mine ? 'mine' : 'theirs'}${pending ? ' is-pending' : ''}" data-id="${m.id}">
-            ${showAuthor ? `<div class="chat-author">${escapeHtml(m.author ?? 'Player')}</div>` : ''}
-            <div class="chat-bubble-body">
-              ${m.imageUrl ? `<a class="chat-image-link" href="${escapeHtml(m.imageUrl)}" target="_blank" rel="noopener"><img class="chat-image" src="${escapeHtml(m.imageUrl)}" alt="Shared image" /></a>` : ''}
-              ${
-                m.audioUrl
-                  ? `<div class="chat-audio"><audio controls preload="metadata" src="${escapeHtml(m.audioUrl)}"></audio>${
-                      m.durationMs ? `<span class="chat-audio-dur">${fmtDuration(m.durationMs)}</span>` : ''
-                    }</div>`
-                  : ''
-              }
-              ${m.text ? `<p>${escapeHtml(m.text)}</p>` : ''}
-            </div>
-            <div class="chat-meta"><span>${fmtTime(m.ts)}</span>${m.mine ? deliveryTicks(m.delivery) : ''}</div>
-          </article>`);
+        parts.push(this.bubbleHtml(m, false));
       }
     }
     const progress = this.voiceProgressHtml();
     if (progress) parts.push(progress);
     box.innerHTML = parts.join('');
-    box.scrollTop = box.scrollHeight;
+    if (nearBottom || arr.length < 40) {
+      box.style.scrollBehavior = 'auto';
+      box.scrollTop = box.scrollHeight;
+      box.style.scrollBehavior = '';
+    }
+  }
+
+  private bubbleHtml(m: Msg, animate: boolean): string {
+    const showAuthor = (this.activeId === GLOBAL || isGroupId(this.activeId)) && !m.mine;
+    const pending = m.mine && m.delivery && m.delivery !== 'delivered';
+    const reply = m.replyTo
+      ? `<button type="button" class="chat-reply-quote" data-jump="${escapeHtml(m.replyTo.id)}"><strong>${escapeHtml(m.replyTo.fromName)}</strong><span>${escapeHtml(m.replyTo.text || 'Message')}</span></button>`
+      : '';
+    return `
+      <article class="chat-bubble ${m.mine ? 'mine' : 'theirs'}${pending ? ' is-pending' : ''}${animate ? ' is-new' : ''}" data-id="${escapeHtml(m.id)}" data-client="${escapeHtml(m.clientId || '')}">
+        ${showAuthor ? `<div class="chat-author">${escapeHtml(m.author ?? 'Player')}</div>` : ''}
+        ${reply}
+        <div class="chat-bubble-body">
+          ${m.imageUrl ? `<a class="chat-image-link" href="${escapeHtml(m.imageUrl)}" target="_blank" rel="noopener"><img class="chat-image" src="${escapeHtml(m.imageUrl)}" alt="Shared image" loading="lazy" /></a>` : ''}
+          ${m.stickerUrl ? `<img class="chat-sticker" src="${escapeHtml(m.stickerUrl)}" alt="Sticker" loading="lazy" />` : ''}
+          ${m.gifUrl ? `<img class="chat-gif" src="${escapeHtml(m.gifUrl)}" alt="GIF" loading="lazy" />` : ''}
+          ${
+            m.audioUrl
+              ? `<div class="chat-audio"><audio controls preload="metadata" src="${escapeHtml(m.audioUrl)}"></audio>${
+                  m.durationMs ? `<span class="chat-audio-dur">${fmtDuration(m.durationMs)}</span>` : ''
+                }</div>`
+              : ''
+          }
+          ${m.text ? `<p>${escapeHtml(m.text)}</p>` : ''}
+        </div>
+        <div class="chat-meta">
+          <span>${fmtTime(m.ts)}</span>
+          ${m.mine ? deliveryTicks(m.delivery) : ''}
+          <button type="button" class="chat-reply-btn" data-reply-id="${escapeHtml(m.id)}" title="Reply">Reply</button>
+        </div>
+      </article>`;
+  }
+
+  private appendBubble(m: Msg, animate: boolean): void {
+    const box = this.el('#chat-messages');
+    box.querySelector('.chat-empty-main')?.remove();
+    if (!box.querySelector('.chat-day') && !m.system) {
+      const day = document.createElement('div');
+      day.className = 'chat-day';
+      day.innerHTML = '<span>Today</span>';
+      const spacer = box.querySelector('.chat-msg-spacer');
+      if (spacer?.nextSibling) box.insertBefore(day, spacer.nextSibling);
+      else box.appendChild(day);
+    }
+    const wrap = document.createElement('div');
+    wrap.innerHTML = this.bubbleHtml(m, animate);
+    const node = wrap.firstElementChild as HTMLElement;
+    const progress = box.querySelector('.chat-voice-progress');
+    if (progress) box.insertBefore(node, progress);
+    else box.appendChild(node);
+    if (animate) {
+      node.addEventListener(
+        'animationend',
+        () => node.classList.remove('is-new'),
+        { once: true },
+      );
+    }
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    if (nearBottom) {
+      box.style.scrollBehavior = 'auto';
+      box.scrollTop = box.scrollHeight;
+      box.style.scrollBehavior = '';
+    }
+  }
+
+  private patchBubble(m: Msg): void {
+    const box = this.el('#chat-messages');
+    let el =
+      (box.querySelector(`[data-id="${CSS.escape(m.id)}"]`) as HTMLElement | null) ||
+      (m.clientId ? (box.querySelector(`[data-client="${CSS.escape(m.clientId)}"]`) as HTMLElement | null) : null);
+    if (!el) {
+      this.appendBubble(m, false);
+      return;
+    }
+    el.dataset.id = m.id;
+    if (m.clientId) el.dataset.client = m.clientId;
+    el.classList.toggle('is-pending', !!(m.mine && m.delivery && m.delivery !== 'delivered'));
+    const meta = el.querySelector('.chat-meta');
+    if (meta && m.mine) {
+      const time = meta.querySelector('span');
+      meta.innerHTML = `<span>${fmtTime(m.ts)}</span>${deliveryTicks(m.delivery)}<button type="button" class="chat-reply-btn" data-reply-id="${escapeHtml(m.id)}" title="Reply">Reply</button>`;
+      void time;
+    }
+  }
+
+  private patchHeadStatus(): void {
+    const status = this.root.querySelector('.chat-thread-status');
+    if (!status) return;
+    const c = this.activeMeta();
+    const inVoice = this.voice.connected && c.kind === 'dm';
+    status.textContent = inVoice ? 'In voice channel' : c.status;
+  }
+
+  private patchInfoPresence(): void {
+    if (this.infoUserId) return;
+    this.root.querySelectorAll<HTMLElement>('[data-user-id]').forEach((row) => {
+      const id = row.dataset.userId!;
+      const live = this.online.has(id);
+      row.classList.toggle('is-online', live);
+      row.classList.toggle('is-offline', !live);
+      const tag = row.querySelector(':scope > span:last-child');
+      if (tag) tag.textContent = id === this.me?.id ? 'You' : live ? 'Online' : 'Offline';
+    });
+  }
+
+  private setReply(target: { id: string; text: string; fromName: string }): void {
+    this.replyTo = target;
+    const bar = this.el('#chat-reply-bar');
+    bar.hidden = false;
+    this.el('#chat-reply-name').textContent = target.fromName;
+    this.el('#chat-reply-snip').textContent = target.text || 'Message';
+    this.el<HTMLTextAreaElement>('#chat-input').focus();
+  }
+
+  private clearReply(): void {
+    this.replyTo = null;
+    const bar = this.root.querySelector('#chat-reply-bar') as HTMLElement | null;
+    if (bar) bar.hidden = true;
+  }
+
+  private async ensureMediaPack(): Promise<void> {
+    if (this.mediaStickers.length || this.mediaGifs.length) {
+      this.renderMediaPanes();
+      return;
+    }
+    try {
+      const [sRes, gRes] = await Promise.all([
+        fetch('/api/media-pack?kind=sticker'),
+        fetch('/api/media-pack?kind=gif'),
+      ]);
+      const sData = await sRes.json().catch(() => ({}));
+      const gData = await gRes.json().catch(() => ({}));
+      this.mediaStickers = Array.isArray(sData.items) ? sData.items : [];
+      this.mediaGifs = Array.isArray(gData.items) ? gData.items : [];
+    } catch {
+      this.mediaStickers = [];
+      this.mediaGifs = [];
+    }
+    this.renderMediaPanes();
+  }
+
+  private renderMediaPanes(): void {
+    const stickerPane = this.el('#chat-media-sticker');
+    const gifPane = this.el('#chat-media-gif');
+    stickerPane.innerHTML = this.mediaStickers.length
+      ? this.mediaStickers
+          .map(
+            (m) =>
+              `<button type="button" class="chat-media-card" data-media-kind="sticker" data-media-url="${escapeHtml(m.assetUrl)}" title="${escapeHtml(m.name)}"><img src="${escapeHtml(m.previewUrl)}" alt="" loading="lazy" /></button>`,
+          )
+          .join('')
+      : `<p class="chat-media-empty">No stickers yet. Super Admin can upload them in the Shop admin tools.</p>`;
+    gifPane.innerHTML = this.mediaGifs.length
+      ? this.mediaGifs
+          .map(
+            (m) =>
+              `<button type="button" class="chat-media-card" data-media-kind="gif" data-media-url="${escapeHtml(m.assetUrl)}" title="${escapeHtml(m.name)}"><img src="${escapeHtml(m.previewUrl)}" alt="" loading="lazy" /></button>`,
+          )
+          .join('')
+      : `<p class="chat-media-empty">No GIFs yet. Super Admin can upload them in the Shop admin tools.</p>`;
+  }
+
+  private async sendMediaChip(kind: 'sticker' | 'gif', url: string): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      showToast('Reconnecting… try again in a moment.');
+      return;
+    }
+    const clientId = newClientId();
+    const ts = Date.now();
+    const replyTo = this.replyTo ? { ...this.replyTo } : undefined;
+    const partial: Omit<Msg, 'mine' | 'author' | 'delivery'> & { delivery?: Delivery } = {
+      id: clientId,
+      clientId,
+      text: '',
+      ts,
+      replyTo,
+      stickerUrl: kind === 'sticker' ? url : undefined,
+      gifUrl: kind === 'gif' ? url : undefined,
+    };
+    this.pushOptimistic(partial);
+    this.send({
+      type: 'message',
+      to: this.activeId,
+      text: '',
+      clientId,
+      replyTo,
+      stickerUrl: kind === 'sticker' ? url : undefined,
+      gifUrl: kind === 'gif' ? url : undefined,
+    });
+    this.clearReply();
+    this.el('#chat-emoji-panel').hidden = true;
+  }
+
+  private async loadCosmeticsFor(userId: string): Promise<{ frameUrl?: string; effectUrl?: string; nameplateUrl?: string }> {
+    if (this.cosmeticsCache.has(userId)) return this.cosmeticsCache.get(userId)!;
+    try {
+      const res = await fetch(`/api/cosmetics/equipped/${encodeURIComponent(userId)}`);
+      const data = await res.json().catch(() => ({}));
+      const resolved = {
+        frameUrl: data.frame?.previewUrl as string | undefined,
+        effectUrl: data.effect?.previewUrl as string | undefined,
+        nameplateUrl: data.nameplate?.previewUrl as string | undefined,
+      };
+      this.cosmeticsCache.set(userId, resolved);
+      return resolved;
+    } catch {
+      const empty = {};
+      this.cosmeticsCache.set(userId, empty);
+      return empty;
+    }
   }
 
   private memberRow(id: string, live: boolean): string {
     const name = this.names.get(id) ?? 'Player';
-    return `<li class="${live ? 'is-online' : 'is-offline'}"><span class="chat-conv-avatar sm">${avatarHtml(name, '', this.avatars.get(id) || '')}${statusDot(live)}</span> ${escapeHtml(name)} <span>${id === this.me?.id ? 'You' : live ? 'Online' : 'Offline'}</span></li>`;
+    const cos = this.cosmeticsCache.get(id) || {};
+    const ava = cosmeticAvatarShell(avatarHtml(name, '', this.avatars.get(id) || ''), {
+      frameUrl: cos.frameUrl,
+      effectUrl: cos.effectUrl,
+      sizeClass: 'sm',
+    });
+    return `<li class="${live ? 'is-online' : 'is-offline'}" data-user-id="${escapeHtml(id)}" role="button" tabindex="0">
+      <span class="chat-conv-avatar sm">${ava}${statusDot(live)}</span>
+      ${nameplateHtml(name, cos.nameplateUrl)}
+      <span>${id === this.me?.id ? 'You' : live ? 'Online' : 'Offline'}</span>
+    </li>`;
   }
 
   private renderInfo(): void {
     if (!this.me) return;
+    if (this.infoUserId) {
+      void this.renderUserDetail(this.infoUserId);
+      return;
+    }
     const c = this.activeMeta();
     const ava = this.avatars.get(this.activeId) || '';
+    const memberIds =
+      this.activeId === GLOBAL
+        ? [...this.online.keys(), ...[...this.directory.values()].filter((u) => !this.online.has(u.id)).map((u) => u.id)]
+        : isGroupId(this.activeId)
+          ? this.groups.get(this.activeId)?.members ?? []
+          : [];
+    for (const id of memberIds) void this.loadCosmeticsFor(id).then(() => {
+      /* refreshed below after batch */
+    });
+    // Prefetch then paint (short delay coalesce)
+    void Promise.all(memberIds.slice(0, 40).map((id) => this.loadCosmeticsFor(id))).then(() => {
+      if (!this.infoUserId) this.paintInfoMembers(c, ava);
+    });
+    this.paintInfoMembers(c, ava);
+  }
+
+  private paintInfoMembers(c: { name: string; status: string; online: boolean }, ava: string): void {
     if (this.activeId === GLOBAL) {
       const onlineIds = [...this.online.keys()];
       const offline = [...this.directory.values()].filter((u) => !this.online.has(u.id));
@@ -1457,7 +1883,7 @@ export class ChatApp {
         </div>
         ${
           creatorId
-            ? `<div class="chat-role-admin"><em>ADMIN</em> <strong>${escapeHtml(creatorName)}</strong>${creatorId === this.me.id ? ' · You' : ''}</div>`
+            ? `<div class="chat-role-admin"><em>ADMIN</em> <strong>${escapeHtml(creatorName)}</strong>${creatorId === this.me!.id ? ' · You' : ''}</div>`
             : ''
         }
         <div class="chat-members">
@@ -1481,6 +1907,46 @@ export class ChatApp {
           <h5>Direct message</h5>
           <p>Messages are delivered in real time while ${escapeHtml(c.name)} is online. Voice calls are available here.</p>
         </div>`;
+      void this.renderUserDetail(this.activeId, true);
     }
+  }
+
+  private async renderUserDetail(userId: string, embedInDm = false): Promise<void> {
+    const name = this.names.get(userId) || this.directory.get(userId)?.username || 'Player';
+    const live = this.online.has(userId);
+    const ava = this.avatars.get(userId) || '';
+    const cos = await this.loadCosmeticsFor(userId);
+    const shell = cosmeticAvatarShell(avatarHtml(name, 'xl', ava), {
+      frameUrl: cos.frameUrl,
+      effectUrl: cos.effectUrl,
+      sizeClass: 'xl',
+    });
+    const body = `
+      ${embedInDm ? '' : `<button type="button" class="chat-info-back" id="chat-info-back-members">← Members</button>`}
+      <div class="chat-user-detail">
+        <div class="chat-user-hero">
+          ${cos.effectUrl ? `<img class="chat-user-effect" src="${escapeHtml(cos.effectUrl)}" alt="" />` : ''}
+          <span class="chat-conv-avatar xl-wrap cos-detail">${shell}${statusDot(live)}</span>
+        </div>
+        <h4>${nameplateHtml(name, cos.nameplateUrl)}</h4>
+        <p>${live ? 'Online' : 'Offline'}${userId === this.me?.id ? ' · You' : ''}</p>
+        <div class="chat-user-cos-meta">
+          <span>Frame ${cos.frameUrl ? 'equipped' : 'default'}</span>
+          <span>Effect ${cos.effectUrl ? 'equipped' : 'none'}</span>
+          <span>Nameplate ${cos.nameplateUrl ? 'equipped' : 'default'}</span>
+        </div>
+        ${
+          userId !== this.me?.id
+            ? `<button type="button" class="chat-join-btn" id="chat-info-dm" style="margin-top:14px;min-width:0;width:100%">Message</button>`
+            : ''
+        }
+      </div>`;
+    if (embedInDm) {
+      // DM already painted profile — enhance avatar shell
+      const profile = this.root.querySelector('.chat-info-profile .chat-conv-avatar');
+      if (profile) profile.innerHTML = `${shell}${statusDot(live)}`;
+      return;
+    }
+    this.el('#chat-info-body').innerHTML = body;
   }
 }

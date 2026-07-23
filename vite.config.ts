@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: '127.0.0.1',
+    host: true,
     port: 5173,
     strictPort: true,
     proxy: {
@@ -23,6 +23,25 @@ export default defineConfig({
         changeOrigin: true,
         timeout: 90_000,
         proxyTimeout: 90_000,
+      },
+      // Admin + secret public downloads (force attachment)
+      '/f': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        timeout: 90_000,
+        proxyTimeout: 90_000,
+      },
+      '/secret': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        timeout: 90_000,
+        proxyTimeout: 600_000,
+      },
+      '/download': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        timeout: 90_000,
+        proxyTimeout: 600_000,
       },
       // Real-time chat WebSocket
       '/ws': {
@@ -58,6 +77,10 @@ export default defineConfig({
             if (
               url.startsWith('/api') ||
               url.startsWith('/ws') ||
+              url.startsWith('/f') ||
+              url === '/secret' ||
+              url.startsWith('/secret/') ||
+              url.startsWith('/download') ||
               url.startsWith('/admin') ||
               url.startsWith('/src') ||
               url.startsWith('/@') ||
