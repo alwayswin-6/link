@@ -8,8 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { createMailer, isSmtpConfigured } from './mail.mjs';
 import { createAuthRouter } from './auth-routes.mjs';
 import { createAdminRouter } from './admin.mjs';
-import { attachChat } from './chat.mjs';
-import { initStore, getUpload } from './store.mjs';
+import { createModRouter } from './mod-routes.mjs';
+import { attachChat, getChatMediaPath } from './chat.mjs';
+import { initStore, getUpload, getAvatarFile } from './store.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -75,6 +76,27 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', createAuthRouter(mailer));
 app.use('/api/admin', createAdminRouter());
+app.use('/api/mod', createModRouter());
+
+// Cached OAuth profile photos (Google / Outlook)
+app.get('/api/avatars/:userId', (req, res) => {
+  const file = getAvatarFile(req.params.userId);
+  if (!file) return res.status(404).json({ ok: false, error: 'Avatar not found.' });
+  res.setHeader('Content-Type', file.mime);
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  return res.sendFile(file.path);
+});
+
+// Chat image attachments
+app.get('/api/chat-media/:id', (req, res) => {
+  const file = getChatMediaPath(req.params.id);
+  if (!file) return res.status(404).json({ ok: false, error: 'Media not found.' });
+  res.setHeader('Content-Type', file.mime);
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  return res.sendFile(file.path);
+});
 
 // Public download: hitting an uploaded file's URL always forces a download.
 app.get('/f/:id', async (req, res, next) => {

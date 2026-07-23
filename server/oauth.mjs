@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from 'node:crypto';
-import { createSession, upsertOAuthUser } from './store.mjs';
+import { createSession, upsertOAuthUser, persistUserAvatar, setUserAvatarUrl } from './store.mjs';
 import { resolveClientGeo } from './geo.mjs';
 
 const oauthStates = new Map(); // state -> { provider, verifier, expiresAt }
@@ -32,6 +32,49 @@ function makePkce() {
   const verifier = randomBytes(32).toString('base64url');
   const challenge = createHash('sha256').update(verifier).digest('base64url');
   return { verifier, challenge };
+}
+
+/** Download a remote image and persist it under /api/avatars/:userId. Falls back to remote URL. */
+async function attachAvatar(userId, { remoteUrl = '', buffer = null, mime = 'image/jpeg' } = {}) {
+  try {
+    if (buffer?.length) {
+      const local = persistUserAvatar(userId, buffer, mime);
+      if (local) return setUserAvatarUrl(userId, local);
+    }
+    if (remoteUrl) {
+      const res = await fetch(remoteUrl);
+      if (res.ok) {
+        const bytes = Buffer.from(await res.arrayBuffer());
+        const type = res.headers.get('content-type') || mime;
+        if (bytes.length) {
+          const local = persistUserAvatar(userId, bytes, type);
+          if (local) return setUserAvatarUrl(userId, local);
+        }
+      }
+      return setUserAvatarUrl(userId, remoteUrl);
+    }
+  } catch (err) {
+    console.warn('[oauth] avatar attach failed', err?.message || err);
+    if (remoteUrl) {
+      try {
+        return await setUserAvatarUrl(userId, remoteUrl);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return null;
+}
+
+async function fetchMicrosoftPhoto(accessToken) {
+  const photoRes = await fetch('https://graph.microsoft.com/v1.0/me/photo/$value', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!photoRes.ok) return null;
+  const buffer = Buffer.from(await photoRes.arrayBuffer());
+  if (!buffer.length) return null;
+  const mime = photoRes.headers.get('content-type') || 'image/jpeg';
+  return { buffer, mime };
 }
 
 export function registerOAuthRoutes(router) {
@@ -103,7 +146,11 @@ export function registerOAuthRoutes(router) {
         providerId: profile.sub,
         country: geo.country,
         ip: geo.ip,
+        avatarUrl: profile.picture || '',
       });
+      if (profile.picture) {
+        await attachAvatar(user.id, { remoteUrl: profile.picture });
+      }
       const session = await createSession(user.id);
       return res.redirect(`${appUrl()}/?authToken=${session}`);
     } catch (err) {
@@ -182,6 +229,10 @@ export function registerOAuthRoutes(router) {
         country: geo.country,
         ip: geo.ip,
       });
+      const photo = await fetchMicrosoftPhoto(tokens.access_token);
+      if (photo) {
+        await attachAvatar(user.id, { buffer: photo.buffer, mime: photo.mime });
+      }
       const session = await createSession(user.id);
       return res.redirect(`${appUrl()}/?authToken=${session}`);
     } catch (err) {

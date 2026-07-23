@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   createSession,
   destroySession,
@@ -6,16 +7,28 @@ import {
   findUserByUsername,
   getSessionUser,
   getSettings,
+  persistUserAvatar,
   publicUser,
   registerUserDirect,
+  setUserAvatarUrl,
   touchUserActivity,
   updateUserAdmin,
-  verifyPassword,
+  verifyUserPassword,
 } from './store.mjs';
 import { registerOAuthRoutes } from './oauth.mjs';
 import { resolveClientGeo } from './geo.mjs';
+import { saveChatMedia } from './chat.mjs';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+const chatMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
+
 
 function bearer(req) {
   const h = req.headers.authorization || '';
@@ -123,7 +136,7 @@ export function createAuthRouter(_mailer = null) {
       }
 
       const user = await findUserByEmail(email);
-      if (!user || !user.password || !verifyPassword(password, user.password)) {
+      if (!user || !verifyUserPassword(password, user)) {
         return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
       }
       if (user.status === 'banned') {
@@ -162,6 +175,75 @@ export function createAuthRouter(_mailer = null) {
     }
     await touchUserActivity(user.id, { ip: clientIp(req) });
     return res.json({ ok: true, user: publicUser(user) });
+  });
+
+  router.post('/avatar', (req, res) => {
+    avatarUpload.single('avatar')(req, res, async (err) => {
+      if (err) {
+        const msg = err.code === 'LIMIT_FILE_SIZE' ? 'Image must be 5MB or smaller.' : 'Upload failed.';
+        return res.status(400).json({ ok: false, error: msg });
+      }
+      try {
+        const user = await getSessionUser(bearer(req));
+        if (!user) return res.status(401).json({ ok: false, error: 'Not signed in.' });
+        if (user.status === 'banned' || user.status === 'suspended') {
+          return res.status(403).json({ ok: false, error: 'Account restricted.' });
+        }
+        const file = req.file;
+        if (!file?.buffer?.length) {
+          return res.status(400).json({ ok: false, error: 'Choose an image to upload.' });
+        }
+        const mime = String(file.mimetype || '');
+        if (!/^image\/(jpeg|jpg|png|webp|gif)$/i.test(mime)) {
+          return res.status(400).json({ ok: false, error: 'Use a JPG, PNG, WEBP, or GIF image.' });
+        }
+        const local = persistUserAvatar(user.id, file.buffer, mime);
+        if (!local) return res.status(500).json({ ok: false, error: 'Could not save avatar.' });
+        const updated = await setUserAvatarUrl(user.id, local);
+        return res.json({ ok: true, user: publicUser(updated) });
+      } catch (e) {
+        console.error('[auth/avatar]', e);
+        return res.status(500).json({ ok: false, error: 'Could not update avatar.' });
+      }
+    });
+  });
+
+  router.post('/chat-media', (req, res) => {
+    chatMediaUpload.fields([
+      { name: 'image', maxCount: 1 },
+      { name: 'audio', maxCount: 1 },
+    ])(req, res, async (err) => {
+      if (err) {
+        const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File must be 8MB or smaller.' : 'Upload failed.';
+        return res.status(400).json({ ok: false, error: msg });
+      }
+      try {
+        const user = await getSessionUser(bearer(req));
+        if (!user) return res.status(401).json({ ok: false, error: 'Not signed in.' });
+        if (user.status === 'banned' || user.status === 'suspended') {
+          return res.status(403).json({ ok: false, error: 'Account restricted.' });
+        }
+        if (user.status === 'muted') {
+          return res.status(403).json({ ok: false, error: 'You are muted.' });
+        }
+        const files = req.files || {};
+        const file = files.image?.[0] || files.audio?.[0];
+        if (!file?.buffer?.length) {
+          return res.status(400).json({ ok: false, error: 'Choose a file to upload.' });
+        }
+        const mime = String(file.mimetype || '');
+        const okImage = /^image\/(jpeg|jpg|png|webp|gif)$/i.test(mime);
+        const okAudio = /^audio\/(webm|ogg|mp4|mpeg|wav|x-m4a|aac)$/i.test(mime) || /webm/i.test(mime);
+        if (!okImage && !okAudio) {
+          return res.status(400).json({ ok: false, error: 'Use an image or audio clip.' });
+        }
+        const saved = saveChatMedia(file.buffer, mime || (okAudio ? 'audio/webm' : 'image/jpeg'));
+        return res.json({ ok: true, url: saved.url, id: saved.id, mime: saved.mime });
+      } catch (e) {
+        console.error('[auth/chat-media]', e);
+        return res.status(500).json({ ok: false, error: 'Could not upload media.' });
+      }
+    });
   });
 
   router.post('/logout', async (req, res) => {

@@ -1,5 +1,6 @@
 import { ensureUiChrome, showToast } from './ui';
 import { openCommunity, openDownload } from './pages';
+import { openDiscordInvite } from './discord';
 
 export type InteractionCallbacks = {
   showChat: () => void;
@@ -36,7 +37,7 @@ export function initInteractions(cb: InteractionCallbacks): void {
 
   // ——— Community ———
   dash.querySelector('.dash-btn-discord')?.addEventListener('click', () => {
-    window.open('https://discord.com/', '_blank', 'noopener,noreferrer');
+    openDiscordInvite();
     showToast('Opening Discord…');
   });
   dash.querySelector('.dash-btn-learn')?.addEventListener('click', () => openCommunity());

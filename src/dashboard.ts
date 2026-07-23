@@ -17,20 +17,18 @@ export function dashboardHTML(): string {
   <div id="dashboard" class="dash">
     <header class="dash-header">
       <div class="dash-header-inner">
-        <a class="dash-brand" href="#/" data-nav="home" aria-label="LINK">
-          ${brandLogoSvg()}
-          <span class="dash-brand-title">LINK</span>
+        <a class="dash-brand" href="/" data-nav="home" aria-label="LINK">
+          ${brandLogo()}
+          <span class="dash-brand-title focus-text">LIN<span class="focus-accent">K</span></span>
         </a>
 
         <nav class="dash-nav" aria-label="Main">
-          <a class="dash-nav-item active" href="#/" data-nav="home"><span>Dashboard</span></a>
-          <a class="dash-nav-item" href="#download" data-nav="download" id="nav-play"><span>Download</span></a>
-          <a class="dash-nav-item" href="#leaderboard" data-nav="ranking" id="nav-ranking"><span>Rankings</span></a>
-          <a class="dash-nav-item" href="#matches" data-nav="matches" id="nav-matches"><span>Matches</span></a>
-          <a class="dash-nav-item" href="#community" data-nav="community" id="nav-community"><span>Community</span></a>
-          <a class="dash-nav-item" href="#inventory" data-nav="inventory" id="nav-inventory"><span>Inventory</span></a>
-          <a class="dash-nav-item" href="#shop" data-nav="shop" id="nav-shop"><span>Shop</span></a>
-          <a class="dash-nav-item" href="#settings" data-nav="settings" id="nav-settings"><span>Settings</span></a>
+          <a class="dash-nav-item active" href="/" data-nav="home"><span>Dashboard</span></a>
+          <a class="dash-nav-item" href="/download" data-nav="download" id="nav-play"><span>Download</span></a>
+          <a class="dash-nav-item" href="/leaderboard" data-nav="ranking" id="nav-ranking"><span>Rankings</span></a>
+          <a class="dash-nav-item" href="/matches" data-nav="matches" id="nav-matches"><span>Matches</span></a>
+          <a class="dash-nav-item" href="/community" data-nav="community" id="nav-community"><span>Community</span></a>
+          <a class="dash-nav-item" href="/inventory" data-nav="inventory" id="nav-inventory"><span>Inventory</span></a>
         </nav>
 
         <div class="dash-topbar-right">
@@ -42,7 +40,7 @@ export function dashboardHTML(): string {
           <button type="button" class="dash-icon-btn has-dot" id="topbar-chat" aria-label="Open chat" title="Chat">${iconChat()}</button>
           <button type="button" class="dash-icon-btn has-dot" aria-label="Notifications">${iconBell()}</button>
           <button type="button" class="dash-user-chip" id="auth-user-chip" hidden>
-            <span class="dash-user-avatar"><img class="dash-fill" src="/position/user2.png" alt="Player avatar" /></span>
+            <span class="dash-user-avatar"><img class="dash-fill" src="/position/defult.png" alt="Player avatar" /></span>
             <span class="dash-user-meta">
               <span class="dash-online-dot" title="Online" aria-label="Online"></span>
               <span class="dash-user-name">Player</span>
@@ -57,43 +55,51 @@ export function dashboardHTML(): string {
       ${chatRoomHTML()}
 
       <div class="dash-scroll" id="dash-home">
-        <!-- HERO — full-bleed, single image, diagonal clip -->
+        <!-- HERO -->
         <section class="dash-hero">
           <div class="dash-hero-bg" aria-hidden="true">
             <img class="dash-hero-img" src="${IMG.hero}" alt="" loading="eager" decoding="async" />
             <div class="dash-hero-veil"></div>
           </div>
           <svg class="dash-hero-slash" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <line x1="0" y1="78" x2="100" y2="84" />
+            <line x1="0" y1="88" x2="100" y2="94" />
           </svg>
           <div class="dash-hero-body">
             <div class="dash-hero-copy">
-              <p class="dash-hero-eyebrow">Featured game</p>
-              <h1 class="dash-hero-title">LINK</h1>
+              <p class="dash-hero-eyebrow">Season 01 · Competitive PC Arena</p>
+              <h1 class="dash-hero-title focus-text">Draw the <span class="focus-accent">battlefield</span></h1>
               <p class="dash-hero-sub">
-                Capture energy nodes, draw the battlefield, and climb ranked. Download and play.
+                Capture energy nodes, connect glowing links, and climb ranked.
+                A fast multiplayer arena built for decisive plays.
               </p>
               <div class="dash-hero-actions">
                 <button type="button" class="dash-btn-play" id="play-now-btn">
                   <span class="dash-download-icon">${iconDownload()}</span>
-                  Download
+                  Download for Windows
                 </button>
                 <button type="button" class="dash-btn-how" id="quick-play-btn">
-                  <span class="dash-play-ico">${iconPlay()}</span>
-                  Play now
+                  View Trailer
                 </button>
               </div>
               <div class="dash-hero-meta">
                 <span class="dash-hero-chip"><span class="live-dot"></span> 24,582 online</span>
+                <span class="dash-hero-chip">Free to play</span>
                 <span class="dash-hero-chip">Patch 0.1.0</span>
               </div>
             </div>
           </div>
         </section>
 
-        <div class="dash-content">
-          <!-- GENERALS -->
+        <div class="dash-content dash-content--pad">
+          <!-- FEATURES / GENERALS -->
           <section class="dash-section dash-generals">
+            <div class="dash-section-head">
+              <div>
+                <p class="dash-section-eyebrow">Loadouts</p>
+                <h2 class="dash-section-title focus-text">Choose your <span class="focus-accent">general</span></h2>
+                <p class="dash-section-desc">Four roles. One objective. Master the link that fits your playstyle.</p>
+              </div>
+            </div>
             <div class="dash-generals-grid">
               ${generalCard(IMG.general1, 'Pulse', 'Assault', 'Fast captures and aggressive links.')}
               ${generalCard(IMG.general2, 'Void', 'Control', 'Zone denial and battlefield pressure.')}
@@ -101,87 +107,157 @@ export function dashboardHTML(): string {
               ${generalCard(IMG.general4, 'Apex', 'Tactical', 'Precision plays and ranked climbs.')}
             </div>
           </section>
+        </div>
 
-          <!-- WIDE IMAGE 1 (was Top Players) -->
-          <section class="dash-section dash-wide">
-            <figure class="dash-wide-frame">
-              <img src="${IMG.banner1}" alt="" loading="lazy" decoding="async" />
-              <span class="lib-ph-label">REPLACE IMAGE</span>
-            </figure>
-          </section>
+        <!-- TOURNAMENT / EVENT BANNER -->
+        <section class="dash-promo-bleed">
+          <div class="dash-promo">
+            <img class="dash-promo-bg" src="${IMG.banner1}" alt="" loading="lazy" decoding="async" />
+            <div class="dash-promo-veil" aria-hidden="true"></div>
+            <div class="dash-promo-content">
+              <p class="dash-promo-eyebrow">Tournament</p>
+              <h2 class="dash-promo-title focus-text">Circuit Open — Week <span class="focus-accent">3</span></h2>
+              <p class="dash-promo-text">Compete in ranked brackets, earn season rewards, and prove your link control under pressure.</p>
+              <div class="dash-promo-meta">
+                <span>Prize pool · 50,000 LP</span>
+                <span>Format · Solo queue</span>
+                <span>Ends · Sunday 23:59 UTC</span>
+              </div>
+              <button type="button" class="dash-btn-play" data-nav="ranking" id="promo-rankings-btn">View Rankings</button>
+            </div>
+          </div>
+        </section>
 
-          <!-- ABOUT (was Teams) -->
+        <div class="dash-content dash-content--pad">
+          <!-- ABOUT + FEATURE STRIP -->
           <section class="dash-section dash-about">
-            <div class="dash-about-panel glass-panel">
-              <p class="dash-about-eyebrow">About LINK</p>
-              <h2 class="dash-about-title">A competitive arena built around energy, movement, and connection.</h2>
-              <p class="dash-about-text">
-                LINK is a fast multiplayer battle game where every attack draws a glowing link across the map.
-                Capture nodes to gather energy, turn enemy ground into your path, and form Energy Zones by connecting three links into a triangle.
-                Climb the ranked ladder, complete missions, and compete with players worldwide.
-              </p>
-              <p class="dash-about-text">
-                Whether you queue for a quick match or push for Champion, the battlefield rewards clear decisions and sharp timing.
-              </p>
+            <div class="dash-about-layout">
+              <div class="dash-about-panel">
+                <p class="dash-about-eyebrow">About LINK</p>
+                <h2 class="dash-about-title focus-text">A competitive arena built around energy, movement, and <span class="focus-accent">connection</span>.</h2>
+                <p class="dash-about-text">
+                  LINK is a fast multiplayer battle game where every attack draws a glowing link across the map.
+                  Capture nodes to gather energy, turn enemy ground into your path, and form Energy Zones by connecting three links into a triangle.
+                </p>
+                <p class="dash-about-text dash-about-text--soft">
+                  Whether you queue for a quick match or push for Champion, the battlefield rewards clear decisions and sharp timing.
+                </p>
+              </div>
+              <div class="dash-feature-list" aria-label="Core features">
+                ${featureItem('01', 'Energy Capture', 'Secure nodes and control the flow of power across the map.')}
+                ${featureItem('02', 'Link Combat', 'Every attack leaves a path. Use it to accelerate — or deny theirs.')}
+                ${featureItem('03', 'Ranked Ladder', 'Climb from Rookie to Champion with seasonal resets and rewards.')}
+                ${featureItem('04', 'Custom Lobbies', 'Train, scrim, and host private matches with friends.')}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- MATCH STATS / SCREENSHOT BANNER -->
+        <section class="dash-promo-bleed dash-promo-bleed--stats">
+          <div class="dash-promo dash-promo--split">
+            <img class="dash-promo-bg" src="${IMG.banner2}" alt="" loading="lazy" decoding="async" />
+            <div class="dash-promo-veil dash-promo-veil--soft" aria-hidden="true"></div>
+            <div class="dash-promo-content dash-promo-content--end">
+              <p class="dash-promo-eyebrow">Live season</p>
+              <h2 class="dash-promo-title focus-text">Built for the <span class="focus-accent">climb</span></h2>
+              <div class="dash-stat-row">
+                ${statCell('2.4M', 'Matches played')}
+                ${statCell('48s', 'Avg. time to queue')}
+                ${statCell('126', 'Countries active')}
+                ${statCell('4', 'Competitive modes')}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="dash-content dash-content--pad">
+          <!-- LEADERBOARD PREVIEW -->
+          <section class="dash-section dash-lb-preview" id="home-rankings">
+            <div class="dash-section-head">
+              <div>
+                <p class="dash-section-eyebrow">Competitive</p>
+                <h2 class="dash-section-title focus-text">Top <span class="focus-accent">players</span></h2>
+                <p class="dash-section-desc">This week’s ranked ladder leaders. Climb, defend, and take the crown.</p>
+              </div>
+              <a class="dash-view-all" href="/leaderboard" data-nav="ranking">Full rankings ${iconArrowRight()}</a>
+            </div>
+            <div class="dash-lb-grid">
+              ${lbCard(1, 'Nyx', 'Champion', '2,840', true)}
+              ${lbCard(2, 'Volt', 'Grandmaster', '2,712', false)}
+              ${lbCard(3, 'Echo', 'Grandmaster', '2,655', false)}
+              ${lbCard(4, 'Rift', 'Master', '2,501', false)}
             </div>
           </section>
 
-          <!-- WIDE IMAGE 2 (was News) -->
-          <section class="dash-section dash-wide">
-            <figure class="dash-wide-frame">
-              <img src="${IMG.banner2}" alt="" loading="lazy" decoding="async" />
-              <span class="lib-ph-label">REPLACE IMAGE</span>
-            </figure>
-          </section>
-
-          <!-- DOWNLOAD (was Event) -->
-          <section class="dash-section dash-download-block">
-            <div class="dash-download-panel glass-panel">
-              <p class="dash-download-eyebrow">Get the game</p>
-              <h2 class="dash-download-title">Download for Windows</h2>
-              <p class="dash-download-text">
-                Install LINK on your PC and jump into ranked, custom lobbies, and training.
-              </p>
-              <button type="button" class="dash-btn-play" id="windows-download-btn">
-                <span class="dash-download-icon">${iconDownload()}</span>
-                Download for Windows
-              </button>
-              <p class="dash-download-soon">
-                Coming soon on other devices — macOS, Android, and iOS releases are on the way.
-              </p>
-            </div>
-          </section>
-
-          <!-- COMMUNITY -->
-          <section class="dash-section dash-community-block">
-            <div class="dash-community glass-panel">
-              <img class="dash-community-bg" src="${IMG.community}" alt="" aria-hidden="true" />
-              <div class="dash-community-overlay" aria-hidden="true"></div>
-              <div class="dash-community-content">
-                <p class="dash-community-eyebrow">Players</p>
-                <h2>Join the community</h2>
-                <p>Find teammates, share clips, and stay updated on seasons and events.</p>
-                <div class="dash-community-actions">
-                  <button type="button" class="dash-btn-discord">${iconDiscord()} Discord</button>
-                  <button type="button" class="dash-btn-learn">Learn more ${iconArrowRight()}</button>
+          <!-- DOWNLOAD -->
+          <section class="dash-section dash-download-block" id="home-download">
+            <div class="dash-download-panel">
+              <div class="dash-download-copy">
+                <p class="dash-download-eyebrow">Get the game</p>
+                <h2 class="dash-download-title focus-text">Download for <span class="focus-accent">Windows</span></h2>
+                <p class="dash-download-text">
+                  Install LINK on your PC and jump into ranked, custom lobbies, and training.
+                  Lightweight client. Competitive focus.
+                </p>
+                <ul class="dash-download-specs">
+                  <li>Windows 10 / 11 · 64-bit</li>
+                  <li>~1.2 GB install size</li>
+                  <li>Controller + keyboard supported</li>
+                </ul>
+                <button type="button" class="dash-btn-play" id="windows-download-btn">
+                  <span class="dash-download-icon">${iconDownload()}</span>
+                  Download for Windows
+                </button>
+                <p class="dash-download-soon">
+                  Coming soon on other devices — macOS, Android, and iOS releases are on the way.
+                </p>
+              </div>
+              <div class="dash-download-aside" aria-hidden="true">
+                <div class="dash-download-badge">
+                  <span class="dash-download-badge-label">Platform</span>
+                  <strong>PC</strong>
+                </div>
+                <div class="dash-download-badge">
+                  <span class="dash-download-badge-label">Status</span>
+                  <strong>Open Beta</strong>
+                </div>
+                <div class="dash-download-badge">
+                  <span class="dash-download-badge-label">Rating</span>
+                  <strong>Teen</strong>
                 </div>
               </div>
             </div>
           </section>
         </div>
 
+        <!-- COMMUNITY -->
+        <section class="dash-community-bleed">
+          <div class="dash-community">
+            <img class="dash-community-bg" src="${IMG.community}" alt="" aria-hidden="true" />
+            <div class="dash-community-overlay" aria-hidden="true"></div>
+            <div class="dash-community-content">
+              <p class="dash-community-eyebrow">Players</p>
+              <h2 class="focus-text">Join the <span class="focus-accent">community</span></h2>
+              <p>Find teammates, share clips, and stay updated on seasons, patches, and events.</p>
+              <div class="dash-community-actions">
+                <button type="button" class="dash-btn-discord">${iconDiscord()} Discord</button>
+                <button type="button" class="dash-btn-learn" data-nav="community">Learn more ${iconArrowRight()}</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <footer class="dash-footer">
           <div class="dash-footer-inner">
             <div class="dash-footer-brand">
-              ${brandLogoSvg()}
-              <span>LINK</span>
+              ${brandLogo()}
+              <span class="focus-text">LIN<span class="focus-accent">K</span></span>
             </div>
             <nav class="dash-footer-nav" aria-label="Footer">
-              <a href="#download" data-nav="download">Download</a>
-              <a href="#leaderboard" data-nav="ranking">Rankings</a>
-              <a href="#community" data-nav="community">Community</a>
-              <a href="#shop" data-nav="shop">Shop</a>
-              <a href="#settings" data-nav="settings">Settings</a>
+              <a href="/download" data-nav="download">Download</a>
+              <a href="/leaderboard" data-nav="ranking">Rankings</a>
+              <a href="/community" data-nav="community">Community</a>
             </nav>
             <p class="dash-footer-copy">© ${new Date().getFullYear()} LINK. All rights reserved. · v0.1.0</p>
           </div>
@@ -235,7 +311,7 @@ export function gameViewHTML(): string {
 
 function generalCard(img: string, name: string, role: string, desc: string): string {
   return `
-    <article class="general-card glass-card">
+    <article class="general-card">
       <div class="general-art">
         <img src="${img}" alt="${name}" />
         <span class="lib-ph-label sm">REPLACE IMAGE</span>
@@ -249,25 +325,47 @@ function generalCard(img: string, name: string, role: string, desc: string): str
   `;
 }
 
-function brandLogoSvg(): string {
+function featureItem(num: string, title: string, desc: string): string {
   return `
-    <svg class="dash-brand-mark" viewBox="0 0 32 32" role="img" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="linkMarkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#22D3EE"/>
-          <stop offset="55%" stop-color="#3B82F6"/>
-          <stop offset="100%" stop-color="#8B5CF6"/>
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="28" height="28" rx="8" fill="url(#linkMarkGrad)" opacity="0.18"/>
-      <path d="M8 16h6l2-6 4 12 2-6h4" fill="none" stroke="url(#linkMarkGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+    <article class="dash-feature-item">
+      <span class="dash-feature-num">${num}</span>
+      <div>
+        <h3 class="dash-feature-title">${title}</h3>
+        <p class="dash-feature-desc">${desc}</p>
+      </div>
+    </article>
   `;
 }
 
-function iconPlay() {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg>`;
+function statCell(value: string, label: string): string {
+  return `
+    <div class="dash-stat-cell">
+      <strong>${value}</strong>
+      <span>${label}</span>
+    </div>
+  `;
 }
+
+function lbCard(rank: number, name: string, league: string, lp: string, gold: boolean): string {
+  return `
+    <article class="home-lb-card${gold ? ' is-top' : ''}">
+      <span class="home-lb-rank">#${rank}</span>
+      <div class="home-lb-meta">
+        <h3 class="home-lb-name">${name}</h3>
+        <p class="home-lb-league">${league}</p>
+      </div>
+      <div class="home-lb-lp">
+        <strong>${lp}</strong>
+        <span>LP</span>
+      </div>
+    </article>
+  `;
+}
+
+function brandLogo(): string {
+  return `<img class="dash-brand-mark" src="/position/logo.png" alt="" width="40" height="40" decoding="async" />`;
+}
+
 function iconChat() {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 14a3 3 0 0 1-3 3H8l-5 4V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z"/></svg>`;
 }

@@ -20,6 +20,7 @@ export interface AdminManagedUser {
   ip: string;
   notes: string;
   online: boolean;
+  role?: 'user' | 'admin';
 }
 
 export interface AdminStats {
@@ -105,12 +106,42 @@ export async function fetchUsers(q = '', status = 'all') {
 
 export async function patchUser(
   id: string,
-  body: Partial<{ status: string; country: string; notes: string; username: string; password: string; reason: string }>,
+  body: Partial<{
+    status: string;
+    country: string;
+    notes: string;
+    username: string;
+    password: string;
+    reason: string;
+    role: 'user' | 'admin';
+  }>,
 ) {
   return adminJson<{ ok: true; user: AdminManagedUser }>(`/users/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
   });
+}
+
+export async function fetchChatRooms() {
+  return adminJson<{ ok: true; rooms: { id: string; label: string; count: number }[] }>('/chat/rooms');
+}
+
+export async function fetchChatHistory(room: string, limit = 500) {
+  const params = new URLSearchParams({ room, limit: String(limit) });
+  return adminJson<{
+    ok: true;
+    room: string;
+    messages: {
+      id: string;
+      from: string;
+      fromName: string;
+      to: string;
+      text: string;
+      imageUrl?: string;
+      audioUrl?: string;
+      ts: number;
+    }[];
+  }>(`/chat/history?${params}`);
 }
 
 export async function fetchAudit() {

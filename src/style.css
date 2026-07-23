@@ -1,20 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Saira:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Mogra&family=Oswald:wght@500;600;700&family=Rubik+Wet+Paint&display=swap');
 @import './dashboard.css';
+@import './home.css';
+@import './focus-type.css';
 @import './chat.css';
 @import './auth.css';
 @import './ui.css';
 @import './pages.css';
+@import './light-theme.css';
 
 :root {
-  --bg: #0B0D10;
-  --panel: #141820;
-  --cyan: #3B82F6;
-  --pink: #60A5FA;
-  --lime: #22D3EE;
-  --amber: #93C5FD;
-  --text: #F1F4F9;
-  --muted: #97A0B0;
-  --accent: #3B82F6;
+  --bg: #0B0C0E;
+  --panel: #16191E;
+  --cyan: #2F9E5F;
+  --pink: #3DB870;
+  --lime: #2F9E5F;
+  --amber: #6BC48A;
+  --text: #F2F3F1;
+  --muted: #9A9FA8;
+  --accent: #2F9E5F;
 }
 
 * {
@@ -29,9 +32,9 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0B0D10;
+  background: #0B0C0E;
   color: var(--text);
-  font-family: Saira, system-ui, -apple-system, sans-serif;
+  font-family: 'Mogra', 'Segoe Script', cursive;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -45,10 +48,8 @@ body,
   height: 100%;
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(ellipse 70% 45% at 50% 0%, rgba(59, 130, 246, 0.1), transparent 55%),
-    var(--bg);
-  font-family: Inter, system-ui, sans-serif;
+  background: var(--bg);
+  font-family: 'Barlow', system-ui, sans-serif;
   position: relative;
 }
 

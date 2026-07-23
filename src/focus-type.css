@@ -1,0 +1,211 @@
+/* Focus display type — brush-stroke style (SB3 reference) */
+
+@font-face {
+  font-family: 'Focus Brush';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Rubik Wet Paint'), local('RubikWetPaint-Regular');
+}
+
+.dash {
+  --font-display: 'Rubik Wet Paint', 'Focus Brush', Impact, cursive;
+  --focus-white: #F5F5F5;
+  --focus-red: #E10600;
+  --focus-red-glow: rgba(225, 6, 0, 0.45);
+  --focus-red-hot: #FF3B2F;
+}
+
+/* Core focus text treatment used by primary headlines */
+.focus-text,
+.dash-brand-title,
+.dash-hero-title,
+.dash-section-title,
+.dash-promo-title,
+.dash-about-title,
+.dash-download-title,
+.dash-community-content h2,
+.dash-footer-brand > span,
+.general-name,
+.dash-feature-title,
+.home-lb-name,
+.dash-stat-cell strong,
+.dash-download-badge strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: 0.92;
+  color: var(--focus-white);
+  /* Dry-brush depth without neon SaaS glow */
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.55),
+    1px 2px 0 rgba(0, 0, 0, 0.35),
+    -0.5px 0 0 rgba(180, 180, 180, 0.18);
+  -webkit-font-smoothing: antialiased;
+  overflow: visible;
+  /* Italic brush glyphs + paint drips extend past the content box */
+  padding-inline-end: 0.28em;
+}
+
+.focus-accent {
+  font-style: italic;
+  display: inline;
+  color: var(--focus-red);
+  background-image: radial-gradient(circle at 30% 35%, rgba(255, 170, 150, 0.55) 0%, transparent 42%),
+    radial-gradient(circle at 70% 70%, rgba(255, 90, 70, 0.45) 0%, transparent 48%),
+    linear-gradient(160deg, var(--focus-red-hot) 0%, var(--focus-red) 55%, #9B0000 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  /* Soft red edge without filter (filters force a clip box) */
+  text-shadow:
+    0 0 12px rgba(225, 6, 0, 0.35),
+    0 1px 0 rgba(0, 0, 0, 0.35);
+  filter: none;
+  padding-inline-end: 0.12em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Size / layout overrides (brush fonts need slightly larger optical size) */
+.dash-brand-title {
+  font-size: 28px;
+  letter-spacing: 0.04em;
+}
+
+.dash-hero-title {
+  font-size: clamp(56px, 8vw, 104px);
+  max-width: none;
+  overflow: visible;
+  padding-right: 0.4em;
+}
+
+.dash-section-title {
+  font-size: clamp(34px, 3.6vw, 48px);
+  color: var(--focus-white);
+}
+
+.dash-promo-title {
+  font-size: clamp(40px, 5vw, 64px);
+  max-width: none;
+  overflow: visible;
+  padding-right: 0.35em;
+}
+
+.dash-about-title {
+  font-size: clamp(32px, 3.6vw, 46px);
+  line-height: 0.98;
+  max-width: none;
+  overflow: visible;
+  padding-right: 0.3em;
+}
+
+.dash-download-title {
+  font-size: clamp(36px, 4.2vw, 52px);
+}
+
+.dash-community-content h2 {
+  font-size: clamp(40px, 5vw, 60px);
+}
+
+.general-name {
+  font-size: 30px;
+}
+
+.dash-feature-title {
+  font-size: 20px;
+}
+
+.home-lb-name {
+  font-size: 22px;
+}
+
+.dash-stat-cell strong {
+  font-size: 34px;
+}
+
+.dash-footer-brand > span {
+  font-size: 24px;
+}
+
+/* Dark surfaces already match SB3 black field; light theme text colors are in light-theme.css */
+
+/* ========== Small text → Mogra cursive ========== */
+.dash-nav-item,
+.dash-hero-eyebrow,
+.dash-section-eyebrow,
+.dash-promo-eyebrow,
+.dash-about-eyebrow,
+.dash-download-eyebrow,
+.dash-community-eyebrow,
+.dash-hero-sub,
+.dash-section-desc,
+.dash-hero-chip,
+.dash-view-all,
+.general-role,
+.general-desc,
+.dash-about-text,
+.dash-feature-desc,
+.dash-promo-text,
+.dash-promo-meta,
+.dash-download-text,
+.dash-download-specs,
+.dash-download-soon,
+.dash-download-badge-label,
+.dash-community-content > p,
+.dash-footer-nav a,
+.dash-footer-copy,
+.home-lb-league,
+.home-lb-lp span,
+.dash-stat-cell span,
+.dash-user-name,
+.lib-ph-label {
+  font-family: var(--font-body);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  overflow: visible;
+  padding-inline-end: 0.15em;
+}
+
+/* Script reads small — bump optical size slightly */
+.dash-nav-item { font-size: 15px; }
+.dash-hero-eyebrow,
+.dash-section-eyebrow,
+.dash-promo-eyebrow,
+.dash-about-eyebrow,
+.dash-download-eyebrow,
+.dash-community-eyebrow { font-size: 15px; }
+.dash-hero-sub,
+.dash-section-desc,
+.dash-about-text,
+.dash-promo-text,
+.dash-download-text,
+.dash-community-content > p,
+.dash-feature-desc { font-size: 17px; line-height: 1.45; }
+.dash-hero-chip,
+.dash-promo-meta,
+.general-role,
+.dash-download-specs li,
+.dash-download-soon,
+.dash-footer-nav a,
+.dash-footer-copy,
+.home-lb-league,
+.dash-stat-cell span,
+.dash-download-badge-label { font-size: 14px; }
+.general-desc { font-size: 15px; line-height: 1.4; }
+
+/* Keep interactive controls / inputs in a clean UI face */
+.dash-search input,
+.dash-btn-play,
+.dash-btn-how,
+.dash-btn-ghost,
+.dash-btn-discord,
+.dash-btn-learn,
+.dash-btn-join {
+  font-family: var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

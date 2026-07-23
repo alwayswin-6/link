@@ -23,8 +23,10 @@ import {
   getSettings,
   updateSettings,
   findUserById,
+  destroySessionsForUser,
 } from './store.mjs';
 import { getOnlineIds, getOnlineUsers, onlineCount } from './presence.mjs';
+import { kickChatUser, listChatRoomsForAdmin, getChatHistoryForAdmin } from './chat.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -210,25 +212,55 @@ export function createAdminRouter() {
   router.patch('/users/:id', requireAdmin, async (req, res) => {
     try {
       const body = req.body ?? {};
+      if (body.role !== undefined && req.admin.role !== 'super_admin') {
+        return res.status(403).json({ ok: false, error: 'Only SUPER ADMIN can change roles.' });
+      }
       const updated = await updateUserAdmin(req.params.id, {
         status: body.status,
         country: body.country,
         notes: body.notes,
         username: body.username,
         password: body.password,
+        role: body.role,
       });
       if (!updated) return res.status(404).json({ ok: false, error: 'User not found.' });
       await audit(
         req,
-        body.password ? 'SET_PASSWORD' : 'UPDATE_USER',
+        body.role
+          ? body.role === 'admin'
+            ? 'PROMOTE_ADMIN'
+            : 'DEMOTE_ADMIN'
+          : body.password
+            ? 'SET_PASSWORD'
+            : 'UPDATE_USER',
         updated.username,
-        body.reason || body.status || 'profile update',
+        body.reason || body.status || body.role || 'profile update',
       );
+      if (body.status === 'banned' || body.status === 'suspended') {
+        await destroySessionsForUser(updated.id);
+        kickChatUser(updated.id);
+      }
       return res.json({ ok: true, user: adminUser(updated, { onlineIds: getOnlineIds() }) });
     } catch (err) {
       console.error('[admin/users:patch]', err);
       return res.status(500).json({ ok: false, error: 'Could not update user.' });
     }
+  });
+
+  router.get('/chat/rooms', requireAdmin, (req, res) => {
+    if (req.admin.role !== 'super_admin') {
+      return res.status(403).json({ ok: false, error: 'SUPER ADMIN only.' });
+    }
+    return res.json({ ok: true, rooms: listChatRoomsForAdmin() });
+  });
+
+  router.get('/chat/history', requireAdmin, (req, res) => {
+    if (req.admin.role !== 'super_admin') {
+      return res.status(403).json({ ok: false, error: 'SUPER ADMIN only.' });
+    }
+    const room = String(req.query.room || 'global');
+    const messages = getChatHistoryForAdmin(room, Number(req.query.limit) || 500);
+    return res.json({ ok: true, room, messages });
   });
 
   router.get('/online', requireAdmin, (_req, res) => {

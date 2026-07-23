@@ -1,19 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@600;700;800&family=Rajdhani:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&family=Rubik+Wet+Paint&display=swap');
 
 :root {
-  --a-bg: #070810;
-  --a-panel: rgba(16, 14, 32, 0.78);
-  --a-border: rgba(168, 85, 247, 0.22);
-  --a-accent: #a855f7;
-  --a-bright: #c084fc;
-  --a-soft: #8b5cf6;
-  --a-text: #eee9ff;
-  --a-muted: #9b93b5;
+  --a-bg: #0B0C0E;
+  --a-panel: #16191E;
+  --a-panel-2: #1C2026;
+  --a-elevated: #111316;
+  --a-border: rgba(255, 255, 255, 0.08);
+  --a-border-strong: rgba(255, 255, 255, 0.14);
+  --a-accent: #2F9E5F;
+  --a-bright: #3DB870;
+  --a-soft: #247A4A;
+  --a-pale: #6BC48A;
+  --a-dim: rgba(47, 158, 95, 0.14);
+  --a-text: #F2F3F1;
+  --a-muted: #9A9FA8;
+  --a-muted-2: #6B717A;
   --a-danger: #f87171;
   --a-ok: #86efac;
   --a-warn: #fcd34d;
-  --a-radius: 16px;
-  --a-trans: 240ms ease;
+  --a-radius: 10px;
+  --a-radius-sm: 8px;
+  --a-trans: 160ms ease;
+  --a-font: 'Barlow', system-ui, sans-serif;
+  --a-display: 'Rubik Wet Paint', Impact, cursive;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -23,13 +32,12 @@ html, body, #admin-root {
   height: 100%;
   background: var(--a-bg);
   color: var(--a-text);
-  font-family: 'Rajdhani', 'Exo 2', sans-serif;
+  font-family: var(--a-font);
 }
 
 body {
   background:
-    radial-gradient(70% 50% at 10% 0%, rgba(124, 58, 237, 0.18), transparent 55%),
-    radial-gradient(60% 40% at 100% 100%, rgba(59, 130, 246, 0.08), transparent 50%),
+    radial-gradient(70% 50% at 10% 0%, rgba(47, 158, 95, 0.1), transparent 55%),
     var(--a-bg);
 }
 
@@ -45,19 +53,33 @@ body {
 .admin-login-card {
   width: min(420px, 100%);
   padding: 36px 32px;
-  border-radius: 22px;
+  border-radius: 12px;
   background: var(--a-panel);
-  border: 1px solid var(--a-border);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 24px rgba(168, 85, 247, 0.12);
+  border: 1px solid var(--a-border-strong);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
   animation: aIn 280ms ease;
 }
-.admin-login-card h1 {
-  font-family: 'Exo 2', sans-serif;
+.admin-login-card h1,
+.admin-login-title {
+  font-family: var(--a-display);
   font-style: italic;
-  font-size: 28px;
-  font-weight: 800;
+  font-size: 32px;
+  font-weight: 400;
   letter-spacing: 0.04em;
+  color: var(--a-bright);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  object-position: 50% 8%;
+  background: #0A0B0D;
+  flex: 0 0 auto;
+  transform: translateY(-3px);
 }
 .admin-login-card .sub {
   margin: 8px 0 24px;
@@ -76,9 +98,9 @@ body {
 .admin-field input {
   height: 46px;
   padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(168, 85, 247, 0.28);
-  background: rgba(168, 85, 247, 0.08);
+  border-radius: var(--a-radius-sm);
+  border: 1px solid var(--a-border-strong);
+  background: var(--a-elevated);
   color: var(--a-text);
   font: inherit;
   font-size: 15px;
@@ -87,8 +109,8 @@ body {
   transition: border-color var(--a-trans), box-shadow var(--a-trans);
 }
 .admin-field input:focus {
-  border-color: rgba(192, 132, 252, 0.6);
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+  border-color: rgba(47, 158, 95, 0.55);
+  box-shadow: 0 0 0 3px rgba(47, 158, 95, 0.12);
 }
 .admin-error {
   min-height: 20px;
@@ -101,15 +123,16 @@ body {
   width: 100%;
   height: 48px;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--a-radius-sm);
   cursor: pointer;
   font: inherit;
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 700;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: #fff;
-  background: linear-gradient(180deg, #c084fc, #7c3aed);
-  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.35);
+  background: linear-gradient(180deg, var(--a-bright), var(--a-accent));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
   transition: transform var(--a-trans), filter var(--a-trans);
 }
 .admin-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
@@ -117,7 +140,7 @@ body {
 .admin-login-foot {
   margin-top: 18px;
   font-size: 12px;
-  color: #6f678a;
+  color: var(--a-muted-2);
   font-weight: 600;
   text-align: center;
   line-height: 1.4;
@@ -131,7 +154,7 @@ body {
 }
 .admin-side {
   border-right: 1px solid var(--a-border);
-  background: rgba(10, 10, 20, 0.7);
+  background: var(--a-elevated);
   padding: 22px 14px;
   display: flex;
   flex-direction: column;
@@ -142,21 +165,36 @@ body {
 }
 .admin-brand {
   padding: 8px 12px 18px;
-  font-family: 'Exo 2', sans-serif;
+  font-family: var(--a-display);
   font-style: italic;
-  font-weight: 800;
-  font-size: 20px;
-  letter-spacing: 0.06em;
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  color: var(--a-bright);
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.admin-brand span {
+.admin-brand .admin-brand-logo {
+  width: 36px;
+  height: 36px;
+}
+.admin-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-brand-text > span,
+.admin-brand span span {
   display: block;
-  margin-top: 4px;
-  font-family: 'Rajdhani', sans-serif;
+  margin-top: 0;
+  font-family: var(--a-font);
   font-style: normal;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
-  color: var(--a-bright);
+  color: var(--a-muted);
 }
 .admin-nav-btn {
   display: flex;
@@ -165,7 +203,7 @@ body {
   width: 100%;
   height: 44px;
   padding: 0 14px;
-  border-radius: 12px;
+  border-radius: var(--a-radius-sm);
   border: 1px solid transparent;
   background: transparent;
   color: var(--a-muted);
@@ -177,11 +215,11 @@ body {
   text-align: left;
   transition: background var(--a-trans), color var(--a-trans), border-color var(--a-trans);
 }
-.admin-nav-btn:hover { color: #fff; background: rgba(168, 85, 247, 0.1); }
+.admin-nav-btn:hover { color: #fff; background: var(--a-dim); }
 .admin-nav-btn.active {
   color: #fff;
-  background: rgba(124, 58, 237, 0.28);
-  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(47, 158, 95, 0.22);
+  border-color: rgba(47, 158, 95, 0.4);
 }
 .admin-side-foot {
   margin-top: auto;
@@ -199,7 +237,7 @@ body {
 .admin-who small { display: block; color: var(--a-muted); font-weight: 600; }
 .admin-logout {
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--a-radius-sm);
   border: 1px solid rgba(248, 113, 113, 0.35);
   background: rgba(248, 113, 113, 0.1);
   color: #fecaca;
@@ -220,10 +258,12 @@ body {
   margin-bottom: 22px;
 }
 .admin-top h2 {
-  font-family: 'Exo 2', sans-serif;
-  font-style: italic;
-  font-size: 28px;
+  font-family: var(--a-font);
+  font-style: normal;
+  font-size: 24px;
   font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 .admin-top p { color: var(--a-muted); font-weight: 600; margin-top: 4px; }
 
@@ -234,9 +274,9 @@ body {
   height: 42px;
   min-width: 260px;
   padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  background: rgba(168, 85, 247, 0.08);
+  border-radius: var(--a-radius-sm);
+  border: 1px solid var(--a-border-strong);
+  background: var(--a-panel);
 }
 .admin-search input {
   flex: 1;
@@ -260,14 +300,13 @@ body {
   border-radius: var(--a-radius);
   background: var(--a-panel);
   border: 1px solid var(--a-border);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
   transition: transform var(--a-trans), border-color var(--a-trans);
   animation: aIn 280ms ease;
 }
 .admin-stat:hover {
   transform: translateY(-2px);
-  border-color: rgba(192, 132, 252, 0.4);
+  border-color: rgba(47, 158, 95, 0.4);
 }
 .admin-stat .label {
   font-size: 12px;
@@ -278,12 +317,13 @@ body {
 }
 .admin-stat .value {
   margin-top: 8px;
-  font-family: 'Exo 2', sans-serif;
+  font-family: var(--a-font);
   font-size: 28px;
   font-weight: 800;
-  font-style: italic;
+  font-style: normal;
+  color: var(--a-bright);
 }
-.admin-stat .hint { margin-top: 4px; font-size: 12px; color: #7a7196; font-weight: 600; }
+.admin-stat .hint { margin-top: 4px; font-size: 12px; color: var(--a-muted-2); font-weight: 600; }
 
 .admin-grid-2 {
   display: grid;
@@ -296,12 +336,14 @@ body {
   border-radius: var(--a-radius);
   background: var(--a-panel);
   border: 1px solid var(--a-border);
-  backdrop-filter: blur(10px);
 }
 .admin-panel h3 {
-  font-family: 'Exo 2', sans-serif;
-  font-style: italic;
-  font-size: 18px;
+  font-family: var(--a-font);
+  font-style: normal;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   margin-bottom: 14px;
 }
 
@@ -315,7 +357,7 @@ body {
 .admin-chart i {
   flex: 1;
   border-radius: 6px 6px 2px 2px;
-  background: linear-gradient(180deg, #c084fc, #6d28d9);
+  background: linear-gradient(180deg, var(--a-bright), var(--a-soft));
   opacity: 0.85;
   min-width: 0;
   transition: opacity var(--a-trans), filter var(--a-trans);
@@ -329,9 +371,9 @@ body {
   justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(168, 85, 247, 0.06);
-  border: 1px solid rgba(168, 85, 247, 0.12);
+  border-radius: var(--a-radius-sm);
+  background: var(--a-dim);
+  border: 1px solid rgba(47, 158, 95, 0.16);
   font-size: 13px;
   font-weight: 600;
 }
@@ -348,8 +390,8 @@ body {
 .admin-chip {
   height: 32px;
   padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(168, 85, 247, 0.22);
+  border-radius: var(--a-radius-sm);
+  border: 1px solid var(--a-border-strong);
   background: transparent;
   color: var(--a-muted);
   font: inherit;
@@ -360,8 +402,8 @@ body {
 }
 .admin-chip.active {
   color: #fff;
-  background: rgba(124, 58, 237, 0.35);
-  border-color: rgba(168, 85, 247, 0.5);
+  background: rgba(47, 158, 95, 0.28);
+  border-color: rgba(47, 158, 95, 0.45);
 }
 .admin-table-wrap {
   overflow: auto;
@@ -378,7 +420,7 @@ table.admin-table {
 .admin-table td {
   padding: 12px 14px;
   text-align: left;
-  border-bottom: 1px solid rgba(168, 85, 247, 0.12);
+  border-bottom: 1px solid var(--a-border);
   font-size: 13px;
   font-weight: 600;
 }
@@ -392,8 +434,8 @@ table.admin-table {
   top: 0;
 }
 .admin-table tr { cursor: pointer; transition: background var(--a-trans); }
-.admin-table tbody tr:hover { background: rgba(168, 85, 247, 0.08); }
-.admin-table tr.active { background: rgba(124, 58, 237, 0.18); }
+.admin-table tbody tr:hover { background: var(--a-dim); }
+.admin-table tr.active { background: rgba(47, 158, 95, 0.16); }
 
 .badge {
   display: inline-flex;
@@ -406,11 +448,11 @@ table.admin-table {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.badge.online, .badge.premium { background: rgba(192, 132, 252, 0.2); color: #ddd6fe; }
-.badge.offline { background: rgba(255, 255, 255, 0.06); color: #9b93b5; }
+.badge.online, .badge.premium { background: rgba(47, 158, 95, 0.2); color: var(--a-pale); }
+.badge.offline { background: rgba(255, 255, 255, 0.06); color: var(--a-muted); }
 .badge.banned { background: rgba(248, 113, 113, 0.18); color: #fecaca; }
 .badge.muted, .badge.suspended { background: rgba(252, 211, 77, 0.15); color: #fde68a; }
-.badge.moderator { background: rgba(96, 165, 250, 0.18); color: #bfdbfe; }
+.badge.moderator { background: rgba(47, 158, 95, 0.14); color: var(--a-pale); }
 
 .admin-actions {
   display: flex;
@@ -422,10 +464,10 @@ table.admin-table {
 .admin-mini {
   height: 36px;
   padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  background: rgba(168, 85, 247, 0.12);
-  color: #eee9ff;
+  border-radius: var(--a-radius-sm);
+  border: 1px solid rgba(47, 158, 95, 0.3);
+  background: var(--a-dim);
+  color: var(--a-text);
   font: inherit;
   font-size: 12px;
   font-weight: 800;
@@ -434,8 +476,8 @@ table.admin-table {
 }
 .admin-actions button:hover,
 .admin-mini:hover {
-  background: rgba(168, 85, 247, 0.22);
-  border-color: rgba(192, 132, 252, 0.5);
+  background: rgba(47, 158, 95, 0.22);
+  border-color: rgba(61, 184, 112, 0.5);
 }
 .admin-actions button.danger {
   border-color: rgba(248, 113, 113, 0.4);
@@ -458,12 +500,11 @@ table.admin-table {
   white-space: nowrap;
 }
 .admin-upload-send {
-  background: linear-gradient(180deg, #c084fc, #7c3aed);
+  background: linear-gradient(180deg, var(--a-bright), var(--a-accent));
   border-color: transparent;
   color: #fff;
 }
 .admin-upload-send:disabled { opacity: 0.5; cursor: not-allowed; }
-/* Anchor buttons share the .admin-mini look */
 a.admin-mini {
   display: inline-flex;
   align-items: center;
@@ -489,9 +530,9 @@ a.admin-mini {
   min-height: 90px;
   margin-top: 10px;
   padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--a-radius-sm);
+  border: 1px solid var(--a-border-strong);
+  background: var(--a-elevated);
   color: inherit;
   font: inherit;
   resize: vertical;
@@ -508,9 +549,9 @@ a.admin-mini {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  border-radius: 14px;
+  border-radius: var(--a-radius);
   border: 1px solid var(--a-border);
-  background: rgba(168, 85, 247, 0.06);
+  background: var(--a-dim);
 }
 .admin-toggle strong { display: block; font-size: 14px; }
 .admin-toggle span { color: var(--a-muted); font-size: 12px; font-weight: 600; }
@@ -523,7 +564,7 @@ a.admin-mini {
   position: relative;
   cursor: pointer;
 }
-.admin-switch.on { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+.admin-switch.on { background: linear-gradient(90deg, var(--a-soft), var(--a-bright)); }
 .admin-switch i {
   position: absolute;
   top: 3px;
@@ -542,9 +583,9 @@ a.admin-mini {
   bottom: 20px;
   z-index: 50;
   padding: 12px 16px;
-  border-radius: 12px;
-  background: rgba(16, 14, 32, 0.95);
-  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: var(--a-radius-sm);
+  background: var(--a-panel);
+  border: 1px solid rgba(47, 158, 95, 0.4);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
   font-weight: 700;
   font-size: 13px;

@@ -13,12 +13,11 @@ import {
   openMissions,
   openCommunity,
   openHowToPlay,
-  openShop,
   openMatches,
   openInventory,
   hidePageView,
+  setPath,
 } from './pages';
-import { showToast } from './ui';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = dashboardHTML();
@@ -38,22 +37,70 @@ function ensureChat(): ChatApp {
   return chatApp;
 }
 
-function showChat(): void {
+function showHomeShell(): void {
+  dashboard.classList.remove('is-chat');
+  dashMain.classList.remove('is-chat');
+}
+
+function showChat(updateUrl = true): void {
   ensureChat();
   hidePageView();
   dashboard.classList.add('is-chat');
   dashMain.classList.add('is-chat');
-}
-
-function showHome(): void {
-  dashboard.classList.remove('is-chat');
-  dashMain.classList.remove('is-chat');
+  setActiveNav('chat');
+  if (updateUrl) setPath('/chat');
 }
 
 function setActiveNav(nav: string): void {
   dashboard.querySelectorAll('.dash-nav-item').forEach((n) => {
     n.classList.toggle('active', (n as HTMLElement).dataset.nav === nav);
   });
+}
+
+function openRoute(id: string): void {
+  showHomeShell();
+  switch (id) {
+    case 'download':
+      setActiveNav('download');
+      openDownload();
+      return;
+    case 'ranking':
+    case 'leaderboard':
+      setActiveNav('ranking');
+      openRanking();
+      return;
+    case 'matches':
+      setActiveNav('matches');
+      openMatches();
+      return;
+    case 'missions':
+      setActiveNav('missions');
+      openMissions();
+      return;
+    case 'community':
+      setActiveNav('community');
+      openCommunity();
+      return;
+    case 'inventory':
+      setActiveNav('inventory');
+      openInventory();
+      return;
+    case 'profile':
+      setActiveNav('profile');
+      openProfile();
+      return;
+    case 'how-to-play':
+    case 'help':
+      setActiveNav('help');
+      openHowToPlay();
+      return;
+    case 'fortune':
+      setActiveNav('fortune');
+      openFortune();
+      return;
+    default:
+      goHome();
+  }
 }
 
 function handleNav(nav: string | undefined, e?: Event): void {
@@ -100,11 +147,6 @@ function handleNav(nav: string | undefined, e?: Event): void {
     return;
   }
 
-  if (nav === 'shop') {
-    openShop();
-    return;
-  }
-
   if (nav === 'profile') {
     openProfile();
     return;
@@ -115,30 +157,29 @@ function handleNav(nav: string | undefined, e?: Event): void {
     return;
   }
 
-  if (nav === 'settings') {
-    showHome();
-    goHome();
-    showToast('Settings coming soon');
-    return;
-  }
-
   if (nav === 'fortune') {
     openFortune();
     return;
   }
 
   goHome();
-  showHome();
 }
 
-// LINK is a downloadable app game — PLAY entry points open the download window.
+/* LINK is a downloadable app game — PLAY entry points open the download window. */
 playNowBtn.addEventListener('click', () => openDownload());
 document.querySelector('#quick-play-btn')?.addEventListener('click', () => openDownload());
 document.querySelector('#windows-download-btn')?.addEventListener('click', () => openDownload());
+document.querySelector('#promo-rankings-btn')?.addEventListener('click', () => {
+  setActiveNav('ranking');
+  openRanking();
+});
+document.querySelector('.dash-btn-learn')?.addEventListener('click', () => {
+  setActiveNav('community');
+  openCommunity();
+});
 navPlay.addEventListener('click', (e) => handleNav('download', e));
 
 topbarChat.addEventListener('click', () => {
-  setActiveNav('chat');
   showChat();
 });
 
@@ -169,11 +210,13 @@ void initAuth();
 
 initRouter({
   showGame: openDownload,
-  showChat,
+  showChat: () => showChat(true),
   setActiveNav,
+  openRoute,
+  showHomeShell,
 });
 
 initInteractions({
-  showChat,
+  showChat: () => showChat(true),
   setActiveNav,
 });

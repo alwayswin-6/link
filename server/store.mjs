@@ -10,6 +10,7 @@ const USERS_FILE = join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = join(DATA_DIR, 'sessions.json');
 const PENDING_FILE = join(DATA_DIR, 'pending.json');
 const UPLOADS_DIR = join(DATA_DIR, 'uploads');
+const AVATARS_DIR = join(DATA_DIR, 'avatars');
 const UPLOADS_FILE = join(DATA_DIR, 'uploads.json');
 const AUDIT_FILE = join(DATA_DIR, 'admin-audit.json');
 const REPORTS_FILE = join(DATA_DIR, 'admin-reports.json');
@@ -47,6 +48,7 @@ export async function initStore() {
 function ensureStore() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
   if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
+  if (!existsSync(AVATARS_DIR)) mkdirSync(AVATARS_DIR, { recursive: true });
   if (!existsSync(USERS_FILE)) writeFileSync(USERS_FILE, '[]\n', 'utf8');
   if (!existsSync(SESSIONS_FILE)) writeFileSync(SESSIONS_FILE, '{}\n', 'utf8');
   if (!existsSync(PENDING_FILE)) writeFileSync(PENDING_FILE, '{}\n', 'utf8');
@@ -106,6 +108,8 @@ function mapUser(row) {
     notes: row.notes ?? '',
     lastIp: row.last_ip ?? row.lastIp ?? '',
     lastSeen: iso(row.last_seen ?? row.lastSeen) || null,
+    avatarUrl: row.avatar_url ?? row.avatarUrl ?? '',
+    role: row.role === 'admin' ? 'admin' : 'user',
     createdAt: iso(row.created_at ?? row.createdAt),
     updatedAt: iso(row.updated_at ?? row.updatedAt),
   };
@@ -151,12 +155,34 @@ export function hashPassword(password) {
   };
 }
 
+function plainEqual(a, b) {
+  const left = Buffer.from(String(a ?? ''), 'utf8');
+  const right = Buffer.from(String(b ?? ''), 'utf8');
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+/** Accepts plain-text vault passwords or legacy PBKDF2 records. */
 export function verifyPassword(password, record) {
-  const salt = Buffer.from(record.salt, 'base64');
-  const expected = Buffer.from(record.hash, 'base64');
-  const actual = pbkdf2Sync(password, salt, record.iterations, expected.length, 'sha256');
-  if (actual.length !== expected.length) return false;
-  return timingSafeEqual(actual, expected);
+  if (record == null) return false;
+  if (typeof record === 'string') return plainEqual(password, record);
+  if (typeof record === 'object' && record.hash && record.salt) {
+    const salt = Buffer.from(record.salt, 'base64');
+    const expected = Buffer.from(record.hash, 'base64');
+    const actual = pbkdf2Sync(password, salt, record.iterations, expected.length, 'sha256');
+    if (actual.length !== expected.length) return false;
+    return timingSafeEqual(actual, expected);
+  }
+  return false;
+}
+
+/** Login check — prefers plain password fields used by the admin vault. */
+export function verifyUserPassword(password, user) {
+  if (!user) return false;
+  if (user.passwordPlain != null && user.passwordPlain !== '') {
+    return plainEqual(password, user.passwordPlain);
+  }
+  return verifyPassword(password, user.password);
 }
 
 function hashOtp(code) {
@@ -211,7 +237,7 @@ export async function createPendingSignup({
   const expiresAt = now + OTP_TTL_MS;
   const key = email.trim().toLowerCase();
   const uname = username.trim();
-  const pwd = hashPassword(password);
+  const pwd = String(password);
   const ctry = normalizeCountry(country);
 
   if (usePostgres) {
@@ -220,7 +246,7 @@ export async function createPendingSignup({
       `INSERT INTO pending_signups
          (id, email, username, provider, password, password_plain, country, code_hash, attempts, email_status, email_error, created_at, expires_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'sending',NULL,$9,$10)`,
-      [id, key, uname, provider, JSON.stringify(pwd), password, ctry, hashOtp(code), now, expiresAt],
+      [id, key, uname, provider, JSON.stringify(pwd), pwd, ctry, hashOtp(code), now, expiresAt],
     );
     return { id, code, email: key, username: uname, expiresAt };
   }
@@ -235,7 +261,7 @@ export async function createPendingSignup({
     username: uname,
     provider,
     password: pwd,
-    passwordPlain: password,
+    passwordPlain: pwd,
     country: ctry,
     codeHash: hashOtp(code),
     attempts: 0,
@@ -355,13 +381,14 @@ export async function confirmPendingSignup(id, code) {
     username: row.username,
     provider: row.provider,
     providerId: null,
-    password: row.password,
-    passwordPlain: row.passwordPlain ?? null,
+    password: row.passwordPlain ?? (typeof row.password === 'string' ? row.password : null),
+    passwordPlain: row.passwordPlain ?? (typeof row.password === 'string' ? row.password : null),
     verified: true,
     rank: 1,
     rating: 0,
     country: row.country || '',
     status: 'active',
+    role: 'user',
     notes: '',
     lastIp: '',
     lastSeen: now,
@@ -413,7 +440,7 @@ export async function registerUserDirect({
   }
 
   const now = new Date().toISOString();
-  const pwd = hashPassword(password);
+  const pwd = String(password);
   const user = {
     id: randomBytes(12).toString('hex'),
     email: key,
@@ -421,12 +448,13 @@ export async function registerUserDirect({
     provider,
     providerId: null,
     password: pwd,
-    passwordPlain: password,
+    passwordPlain: pwd,
     verified: true,
     rank: 1,
     rating: 0,
     country: String(country || '').slice(0, 64),
     status: 'active',
+    role: 'user',
     notes: '',
     lastIp: String(ip || '').slice(0, 64),
     lastSeen: now,
@@ -489,11 +517,20 @@ async function deletePending(id) {
  * ------------------------------------------------------------------ */
 
 /** Upsert a verified user created via OAuth (Google / Microsoft). */
-export async function upsertOAuthUser({ email, username, provider, providerId, country = '', ip = '' }) {
+export async function upsertOAuthUser({
+  email,
+  username,
+  provider,
+  providerId,
+  country = '',
+  ip = '',
+  avatarUrl = '',
+}) {
   const key = email.trim().toLowerCase();
   const now = new Date().toISOString();
   const ctry = String(country || '').slice(0, 64);
   const lastIp = String(ip || '').slice(0, 64);
+  const avatar = String(avatarUrl || '').slice(0, 1024);
 
   if (usePostgres) {
     const { rows } = await query(
@@ -507,9 +544,10 @@ export async function upsertOAuthUser({ email, username, provider, providerId, c
            SET email = $2, username = $3, provider = $4, provider_id = $5, verified = TRUE,
                country = CASE WHEN $6 <> '' AND (country = '' OR country = 'Unknown' OR country = 'Local network') THEN $6 ELSE country END,
                last_ip = CASE WHEN $7 <> '' THEN $7 ELSE last_ip END,
+               avatar_url = CASE WHEN $8 <> '' THEN $8 ELSE avatar_url END,
                last_seen = now(), updated_at = now()
          WHERE id = $1 RETURNING *`,
-        [existing.id, key, existing.username || username, provider, providerId, ctry, lastIp],
+        [existing.id, key, existing.username || username, provider, providerId, ctry, lastIp, avatar],
       );
       return mapUser(updated[0]);
     }
@@ -518,9 +556,9 @@ export async function upsertOAuthUser({ email, username, provider, providerId, c
     const { rows: created } = await query(
       `INSERT INTO users
          (id, email, username, provider, provider_id, password, password_plain, verified, rank, rating,
-          country, status, notes, last_ip, last_seen, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,NULL,NULL,TRUE,1,0,$6,'active','',$7,now(),now(),now()) RETURNING *`,
-      [id, key, uname, provider, providerId, ctry, lastIp],
+          country, status, notes, last_ip, last_seen, avatar_url, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,NULL,NULL,TRUE,1,0,$6,'active','',$7,now(),$8,now(),now()) RETURNING *`,
+      [id, key, uname, provider, providerId, ctry, lastIp, avatar],
     );
     return mapUser(created[0]);
   }
@@ -540,6 +578,7 @@ export async function upsertOAuthUser({ email, username, provider, providerId, c
           ? ctry
           : user.country || ctry,
       lastIp: lastIp || user.lastIp || '',
+      avatarUrl: avatar || user.avatarUrl || '',
       lastSeen: now,
       updatedAt: now,
     };
@@ -559,8 +598,10 @@ export async function upsertOAuthUser({ email, username, provider, providerId, c
       rating: 0,
       country: ctry,
       status: 'active',
+      role: 'user',
       notes: '',
       lastIp,
+      avatarUrl: avatar,
       lastSeen: now,
       createdAt: now,
       updatedAt: now,
@@ -590,6 +631,8 @@ export function publicUser(user) {
     rating: user.rating ?? 0,
     country: user.country || '',
     status: user.status || 'active',
+    avatarUrl: user.avatarUrl || '',
+    role: user.role === 'admin' ? 'admin' : 'user',
     createdAt: user.createdAt,
   };
 }
@@ -611,8 +654,11 @@ export function adminUser(user, { onlineIds = new Set() } = {}) {
     username: user.username,
     displayName: user.username,
     email: user.email,
-    password: user.passwordPlain || (user.password ? '(hashed — set before password vault)' : '(OAuth / no password)'),
-    hasPassword: Boolean(user.password),
+    password:
+      user.passwordPlain ||
+      (typeof user.password === 'string' ? user.password : null) ||
+      (user.password ? '(hashed — legacy account)' : '(OAuth / no password)'),
+    hasPassword: Boolean(user.passwordPlain || user.password),
     provider: user.provider || 'email',
     country: user.country || 'Unknown',
     status: presence,
@@ -626,6 +672,7 @@ export function adminUser(user, { onlineIds = new Set() } = {}) {
     ip: user.lastIp || '—',
     notes: user.notes || '',
     online: live,
+    role: user.role === 'admin' ? 'admin' : 'user',
   };
 }
 
@@ -684,6 +731,63 @@ export async function destroySession(token) {
     delete sessions[token];
     writeSessions(sessions);
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * User avatars (OAuth profile photos)                                *
+ * ------------------------------------------------------------------ */
+
+export function persistUserAvatar(userId, data, mime = 'image/jpeg') {
+  ensureStore();
+  const id = String(userId).replace(/[^a-zA-Z0-9]/g, '');
+  if (!id || !data?.length) return '';
+  const ext = /png/i.test(mime) ? 'png' : /webp/i.test(mime) ? 'webp' : 'jpg';
+  for (const e of ['jpg', 'jpeg', 'png', 'webp']) {
+    const p = join(AVATARS_DIR, `${id}.${e}`);
+    if (existsSync(p) && e !== ext) {
+      try {
+        rmSync(p);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  writeFileSync(join(AVATARS_DIR, `${id}.${ext}`), data);
+  return `/api/avatars/${id}`;
+}
+
+export function getAvatarFile(userId) {
+  ensureStore();
+  const id = String(userId || '').replace(/[^a-zA-Z0-9]/g, '');
+  if (!id) return null;
+  for (const [ext, mime] of [
+    ['jpg', 'image/jpeg'],
+    ['jpeg', 'image/jpeg'],
+    ['png', 'image/png'],
+    ['webp', 'image/webp'],
+  ]) {
+    const path = join(AVATARS_DIR, `${id}.${ext}`);
+    if (existsSync(path)) return { path, mime };
+  }
+  return null;
+}
+
+export async function setUserAvatarUrl(userId, avatarUrl) {
+  const url = String(avatarUrl || '').slice(0, 1024);
+  if (!url) return findUserById(userId);
+  if (usePostgres) {
+    const { rows } = await query(
+      `UPDATE users SET avatar_url = $2, updated_at = now() WHERE id = $1 RETURNING *`,
+      [userId, url],
+    );
+    return mapUser(rows[0]);
+  }
+  const users = readUsers();
+  const idx = users.findIndex((u) => u.id === userId);
+  if (idx < 0) return null;
+  users[idx] = { ...users[idx], avatarUrl: url, updatedAt: new Date().toISOString() };
+  writeUsers(users);
+  return mapUser(users[idx]);
 }
 
 /* ------------------------------------------------------------------ *
@@ -813,18 +917,27 @@ export async function updateUserAdmin(userId, patch = {}) {
     country: patch.country !== undefined ? normalizeCountry(patch.country) : user.country || '',
     notes: patch.notes !== undefined ? String(patch.notes).slice(0, 2000) : user.notes || '',
     username: patch.username !== undefined ? String(patch.username).trim().slice(0, 24) : user.username,
+    role:
+      patch.role !== undefined
+        ? patch.role === 'admin'
+          ? 'admin'
+          : 'user'
+        : user.role === 'admin'
+          ? 'admin'
+          : 'user',
   };
 
   if (patch.password) {
-    next.password = hashPassword(String(patch.password));
-    next.passwordPlain = String(patch.password);
+    const pwd = String(patch.password);
+    next.password = pwd;
+    next.passwordPlain = pwd;
   }
 
   if (usePostgres) {
-    const params = [userId, next.status, next.country, next.notes, next.username];
-    let sql = `UPDATE users SET status=$2, country=$3, notes=$4, username=$5, updated_at=now()`;
-    if (next.password) {
-      sql += `, password=$6, password_plain=$7`;
+    const params = [userId, next.status, next.country, next.notes, next.username, next.role];
+    let sql = `UPDATE users SET status=$2, country=$3, notes=$4, username=$5, role=$6, updated_at=now()`;
+    if (next.passwordPlain != null && patch.password) {
+      sql += `, password=$7, password_plain=$8`;
       params.push(JSON.stringify(next.password), next.passwordPlain);
     }
     sql += ` WHERE id=$1 RETURNING *`;
@@ -842,6 +955,24 @@ export async function updateUserAdmin(userId, patch = {}) {
   };
   writeUsers(users);
   return mapUser(users[idx]);
+}
+
+export async function destroySessionsForUser(userId) {
+  const uid = String(userId || '');
+  if (!uid) return;
+  if (usePostgres) {
+    await query('DELETE FROM sessions WHERE user_id = $1', [uid]);
+    return;
+  }
+  const sessions = readSessions();
+  let changed = false;
+  for (const [token, s] of Object.entries(sessions)) {
+    if (s?.userId === uid) {
+      delete sessions[token];
+      changed = true;
+    }
+  }
+  if (changed) writeSessions(sessions);
 }
 
 export async function getAdminStats(onlineIds = new Set()) {

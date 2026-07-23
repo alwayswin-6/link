@@ -32,10 +32,10 @@ export default defineConfig({
       },
     },
     watch: {
-      // Large binaries + generated/runtime data cause Windows watcher storms / high CPU.
+      // Windows can EBUSY-lock files with spaces/parens under public/.
+      usePolling: true,
+      interval: 1000,
       ignored: [
-        '**/public/**',
-        '**/position/**',
         '**/server/data/**',
         '**/src/admin/generated/**',
         '**/node_modules/**',
@@ -45,4 +45,34 @@ export default defineConfig({
       ],
     },
   },
+  plugins: [
+    {
+      name: 'player-spa-fallback',
+      configureServer(server) {
+        // After Vite's internal middleware so real assets still resolve.
+        return () => {
+          server.middlewares.use((req, _res, next) => {
+            if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+            const raw = req.url || '/';
+            const url = raw.split('?')[0] || '/';
+            if (
+              url.startsWith('/api') ||
+              url.startsWith('/ws') ||
+              url.startsWith('/admin') ||
+              url.startsWith('/src') ||
+              url.startsWith('/@') ||
+              url.startsWith('/node_modules') ||
+              url.startsWith('/position') ||
+              url.startsWith('/assets') ||
+              url.includes('.')
+            ) {
+              return next();
+            }
+            req.url = '/index.html';
+            return next();
+          });
+        };
+      },
+    },
+  ],
 });

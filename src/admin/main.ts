@@ -16,6 +16,8 @@ import {
   fetchAnalytics,
   fetchAnnouncements,
   fetchAudit,
+  fetchChatHistory,
+  fetchChatRooms,
   fetchReports,
   fetchSettings,
   fetchStats,
@@ -45,7 +47,8 @@ type Page =
   | 'analytics'
   | 'audit'
   | 'files'
-  | 'settings';
+  | 'settings'
+  | 'chat';
 
 const root = document.querySelector<HTMLDivElement>('#admin-root')!;
 let session: AdminSession | null = getSession();
@@ -70,6 +73,18 @@ let settings: Record<string, boolean> = {
   shop: true,
   notifications: true,
 };
+let chatRooms: { id: string; label: string; count: number }[] = [];
+let chatRoomId = 'global';
+let chatMessages: {
+  id: string;
+  from: string;
+  fromName: string;
+  to: string;
+  text: string;
+  imageUrl?: string;
+  audioUrl?: string;
+  ts: number;
+}[] = [];
 
 const PAGE_PERMS: Partial<Record<Page, Permission>> = {
   users: 'manage_users',
@@ -79,6 +94,7 @@ const PAGE_PERMS: Partial<Record<Page, Permission>> = {
   analytics: 'view_analytics',
   audit: 'view_audit',
   settings: 'manage_settings',
+  chat: 'view_chat_history',
 };
 
 function toast(msg: string): void {
@@ -138,6 +154,14 @@ async function loadPageData(): Promise<void> {
     } else if (page === 'settings') {
       const data = await fetchSettings();
       settings = data.settings;
+    } else if (page === 'chat') {
+      const rooms = await fetchChatRooms();
+      chatRooms = rooms.rooms;
+      if (!chatRooms.some((r) => r.id === chatRoomId)) {
+        chatRoomId = chatRooms[0]?.id || 'global';
+      }
+      const hist = await fetchChatHistory(chatRoomId);
+      chatMessages = hist.messages;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to load data';
@@ -158,7 +182,7 @@ function renderLogin(): void {
   root.innerHTML = `
     <div class="admin-login">
       <form class="admin-login-card" id="admin-login-form" autocomplete="off">
-        <h1>LINK ADMIN</h1>
+        <h1 class="admin-login-title"><img class="admin-brand-logo" src="/position/logo.png" alt="" /> LINK ADMIN</h1>
         <p class="sub">Private control plane · Authorized personnel only</p>
         <div class="admin-field">
           <label for="admin-email">Administrator Email</label>
@@ -318,7 +342,7 @@ function renderUsers(): string {
         <thead>
           <tr>
             <th>ID</th><th>User</th><th>Email</th><th>Password</th><th>Country</th>
-            <th>Status</th><th>Provider</th><th>IP</th><th>Last Login</th>
+            <th>Role</th><th>Status</th><th>Provider</th><th>IP</th><th>Last Login</th>
           </tr>
         </thead>
         <tbody>
@@ -333,6 +357,7 @@ function renderUsers(): string {
               <td>${escapeHtml(row.email)}</td>
               <td><code style="font-size:11px">${escapeHtml(row.password)}</code></td>
               <td>${escapeHtml(row.country || 'Unknown')}</td>
+              <td><span class="badge ${row.role === 'admin' ? 'online' : 'offline'}">${escapeHtml(row.role === 'admin' ? 'ADMIN' : 'USER')}</span></td>
               <td><span class="badge ${row.status}">${escapeHtml(String(row.status))}</span></td>
               <td>${escapeHtml(row.provider || 'email')}</td>
               <td>${escapeHtml(row.ip || '—')}</td>
@@ -340,7 +365,7 @@ function renderUsers(): string {
             </tr>`,
                   )
                   .join('')
-              : `<tr><td colspan="9" style="padding:24px;color:#9b93b5">No registered users yet.</td></tr>`
+              : `<tr><td colspan="10" style="padding:24px;color:#9b93b5">No registered users yet.</td></tr>`
           }
         </tbody>
       </table>
@@ -359,6 +384,7 @@ function renderUsers(): string {
             <dt>Country</dt><dd>${escapeHtml(u.country || 'Unknown')}</dd>
             <dt>Status</dt><dd><span class="badge ${u.status}">${escapeHtml(String(u.status))}</span></dd>
             <dt>Account</dt><dd>${escapeHtml(u.accountStatus || 'active')}</dd>
+            <dt>Player role</dt><dd>${escapeHtml(u.role === 'admin' ? 'ADMIN' : 'USER')}</dd>
             <dt>Provider</dt><dd>${escapeHtml(u.provider || 'email')}</dd>
             <dt>Registered</dt><dd>${escapeHtml(u.registered)}</dd>
             <dt>Last Login</dt><dd>${escapeHtml(u.lastLogin)}</dd>
@@ -380,11 +406,70 @@ function renderUsers(): string {
             <button type="button" data-act="suspend">Suspend</button>
             <button type="button" data-act="ban" class="danger">Ban Account</button>
             <button type="button" data-act="unban">Restore Account</button>
+            ${
+              session?.role === 'super_admin'
+                ? u.role === 'admin'
+                  ? `<button type="button" data-act="demote-admin">Remove ADMIN</button>`
+                  : `<button type="button" data-act="promote-admin">Make ADMIN</button>`
+                : ''
+            }
           </div>
         </section>
       </div>`
         : ''
     }
+  `;
+}
+
+function renderChatHistoryPage(): string {
+  return `
+    <div class="admin-toolbar">
+      <label class="admin-search" style="flex:1">
+        <select id="chat-room-select" style="width:100%;height:40px;border-radius:8px;border:1px solid #2a3340;background:#12161c;color:inherit;padding:0 12px">
+          ${
+            chatRooms.length
+              ? chatRooms
+                  .map(
+                    (r) =>
+                      `<option value="${escapeHtml(r.id)}" ${r.id === chatRoomId ? 'selected' : ''}>${escapeHtml(r.label)} (${r.count})</option>`,
+                  )
+                  .join('')
+              : `<option value="global">LINK Lobby</option>`
+          }
+        </select>
+      </label>
+      <button type="button" class="admin-chip active" id="chat-refresh">Refresh</button>
+    </div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr><th>Time</th><th>From</th><th>To</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+          ${
+            chatMessages.length
+              ? chatMessages
+                  .slice()
+                  .reverse()
+                  .map((m) => {
+                    const body = m.audioUrl
+                      ? '[voice]'
+                      : m.imageUrl
+                        ? `[image] ${m.text || ''}`
+                        : m.text || '';
+                    return `<tr>
+                      <td>${escapeHtml(new Date(m.ts).toLocaleString())}</td>
+                      <td>${escapeHtml(m.fromName)} <small style="color:#9b93b5">${escapeHtml(m.from)}</small></td>
+                      <td>${escapeHtml(m.to)}</td>
+                      <td>${escapeHtml(body)}</td>
+                    </tr>`;
+                  })
+                  .join('')
+              : `<tr><td colspan="4" style="padding:24px;color:#9b93b5">No messages persisted yet.</td></tr>`
+          }
+        </tbody>
+      </table>
+    </div>
   `;
 }
 
@@ -575,6 +660,7 @@ function pageTitle(): { title: string; sub: string } {
     overview: { title: 'Operations Overview', sub: 'Live platform health' },
     users: { title: 'User Management', sub: 'Registered accounts, credentials, countries, activity' },
     roles: { title: 'Roles & Permissions', sub: 'RBAC configuration' },
+    chat: { title: 'Chat History', sub: 'SUPER ADMIN — full conversation transcripts' },
     reports: { title: 'Report Queue', sub: 'Review and resolve player reports' },
     announcements: { title: 'Announcements', sub: 'Broadcast to audiences' },
     analytics: { title: 'Analytics', sub: 'Growth and activity from real data' },
@@ -597,6 +683,8 @@ function renderBody(): string {
       return renderOverview();
     case 'users':
       return renderUsers();
+    case 'chat':
+      return renderChatHistoryPage();
     case 'roles':
       return renderRoles();
     case 'reports':
@@ -620,9 +708,10 @@ function renderShell(): void {
   root.innerHTML = `
     <div class="admin-shell">
       <aside class="admin-side">
-        <div class="admin-brand">LINK ADMIN<span>CONTROL PLANE</span></div>
+        <div class="admin-brand"><img class="admin-brand-logo" src="/position/logo.png" alt="" /><span class="admin-brand-text">LINK ADMIN<span>CONTROL PLANE</span></span></div>
         ${navBtn('overview', 'Dashboard')}
         ${navBtn('users', 'Users')}
+        ${can('chat') ? navBtn('chat', 'Chat History') : ''}
         ${navBtn('roles', 'Roles')}
         ${navBtn('reports', 'Reports')}
         ${navBtn('announcements', 'Announcements')}
@@ -682,7 +771,29 @@ function bindShell(): void {
   bindReports();
   bindAnnouncements();
   bindSettings();
+  bindChatPage();
   if (page === 'files') bindFilesPage(root, toast);
+}
+
+function bindChatPage(): void {
+  const select = root.querySelector<HTMLSelectElement>('#chat-room-select');
+  select?.addEventListener('change', () => {
+    chatRoomId = select.value;
+    void (async () => {
+      await loadPageData();
+      const pageEl = root.querySelector('#admin-page');
+      if (pageEl) pageEl.innerHTML = renderChatHistoryPage();
+      bindChatPage();
+    })();
+  });
+  root.querySelector('#chat-refresh')?.addEventListener('click', () => {
+    void (async () => {
+      await loadPageData();
+      const pageEl = root.querySelector('#admin-page');
+      if (pageEl) pageEl.innerHTML = renderChatHistoryPage();
+      bindChatPage();
+    })();
+  });
 }
 
 function bindUserPage(): void {
@@ -746,6 +857,12 @@ function bindUserPage(): void {
           } else if (act === 'unban') {
             await patchUser(u.id, { status: 'active', reason: 'restored' });
             toast('User restored');
+          } else if (act === 'promote-admin') {
+            await patchUser(u.id, { role: 'admin', reason: 'promoted to player ADMIN' });
+            toast('User promoted to ADMIN');
+          } else if (act === 'demote-admin') {
+            await patchUser(u.id, { role: 'user', reason: 'removed player ADMIN' });
+            toast('ADMIN role removed');
           }
           await loadPageData();
           const pageEl = root.querySelector('#admin-page');

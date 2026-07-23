@@ -23,7 +23,8 @@ export type Permission =
   | 'view_analytics'
   | 'manage_roles'
   | 'manage_announcements'
-  | 'view_audit';
+  | 'view_audit'
+  | 'view_chat_history';
 
 export interface AdminSession {
   email: string;
@@ -61,6 +62,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     'manage_roles',
     'manage_announcements',
     'view_audit',
+    'view_chat_history',
   ],
   administrator: [
     'manage_users',
