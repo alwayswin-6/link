@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=Rajdhani:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Saira:wght@400;500;600;700&display=swap');
 
 /* ========== DESIGN SYSTEM ========== */
 .dash {
@@ -44,8 +44,9 @@
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   --shadow-lift: 0 12px 28px rgba(0, 0, 0, 0.36);
   --trans: 180ms ease;
-  --font-display: 'Rajdhani', 'Exo 2', sans-serif;
-  --font-body: 'Exo 2', system-ui, sans-serif;
+  /* Orbitron = top Google Font for futuristic gaming logos/titles; Saira for readable game UI */
+  --font-display: 'Orbitron', sans-serif;
+  --font-body: 'Saira', system-ui, sans-serif;
 
   display: flex;
   flex-direction: column;
@@ -371,13 +372,14 @@
 .dash-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 32px var(--page-x) 100px;
+  padding: 0 0 100px;
 }
 
 .dash-content {
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
+  padding: 48px var(--page-x) 0;
   display: flex;
   flex-direction: column;
   gap: var(--section-gap);
@@ -467,17 +469,30 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ========== HERO ========== */
+/* ========== HERO (full-bleed + diagonal image clip) ========== */
 .dash-hero {
   position: relative;
-  min-height: 480px;
-  border-radius: var(--radius-lg);
+  width: 100%;
+  min-height: 560px;
+  margin: 0;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid var(--dash-border);
-  box-shadow: var(--shadow);
+  border: none;
+  box-shadow: none;
 }
 
-.dash-hero-bg { position: absolute; inset: 0; }
+/*
+  Diagonal cut:
+  left edge at 3/4 height (75%), right edge at 4/5 height (80%).
+  Image is clipped to the region ABOVE that line.
+*/
+.dash-hero-bg {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 80%, 0 75%);
+  -webkit-clip-path: polygon(0 0, 100% 0, 100% 80%, 0 75%);
+}
+
 .dash-hero-slides { position: absolute; inset: 0; }
 
 .dash-hero-slide {
@@ -486,10 +501,10 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center top;
   opacity: 0;
   transition: opacity 700ms ease;
-  transform: scale(1.04);
-  filter: brightness(0.62) saturate(1.05) contrast(1.05);
+  filter: brightness(0.7) saturate(1.05) contrast(1.05);
 }
 
 .dash-hero-slide.active { opacity: 1; }
@@ -498,9 +513,26 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(105deg, rgba(10, 11, 14, 0.92) 0%, rgba(10, 11, 14, 0.55) 42%, rgba(10, 11, 14, 0.25) 70%, rgba(10, 11, 14, 0.45) 100%),
-    linear-gradient(0deg, rgba(10, 11, 14, 0.55) 0%, transparent 45%);
+    linear-gradient(105deg, rgba(11, 13, 16, 0.78) 0%, rgba(11, 13, 16, 0.35) 48%, rgba(11, 13, 16, 0.15) 100%),
+    linear-gradient(0deg, rgba(11, 13, 16, 0.35) 0%, transparent 50%);
   pointer-events: none;
+}
+
+.dash-hero-slash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.dash-hero-slash line {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.35;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.45));
 }
 
 .dash-hero-body {
@@ -509,8 +541,11 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  min-height: 480px;
-  padding: 48px 48px 36px;
+  min-height: 560px;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  width: 100%;
+  padding: 48px var(--page-x) 120px;
 }
 
 .dash-hero-copy {
@@ -532,9 +567,9 @@
 .dash-hero-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(48px, 5.5vw, 76px);
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: clamp(48px, 5.5vw, 80px);
+  font-weight: 800;
+  letter-spacing: 0.12em;
   line-height: 0.95;
   text-transform: uppercase;
   color: #fff;
@@ -1623,7 +1658,7 @@
 @media (min-width: 1920px) {
   .dash { --page-x: 56px; --section-gap: 64px; --content-max: 1800px; }
   .dash-hero,
-  .dash-hero-body { min-height: 520px; }
+  .dash-hero-body { min-height: 620px; }
 }
 
 @media (max-width: 1400px) {
@@ -1649,8 +1684,8 @@
   .dash { --header-h: 70px; --page-x: 24px; --section-gap: 44px; }
   .dash-nav { display: none; }
   .dash-header-inner { grid-template-columns: auto 1fr; }
-  .dash-hero-body { padding: 32px 28px 28px; min-height: 420px; }
-  .dash-hero { min-height: 420px; }
+  .dash-hero-body { padding: 32px var(--page-x) 100px; min-height: 460px; }
+  .dash-hero { min-height: 460px; }
   .dash-leaderboard,
   .dash-news,
   .dash-feed { grid-template-columns: 1fr 1fr; }

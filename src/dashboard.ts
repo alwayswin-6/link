@@ -5,8 +5,6 @@ const IMG = {
   hero: '/position/game-hero-placeholder.png',
   cover1: '/position/game-cover-1.png',
   cover2: '/position/game-cover-2.png',
-  cover3: '/position/game-cover-3.png',
-  cover4: '/position/game-cover-4.png',
   modeQuick: '/position/game-mode-quick.png',
   modeRanked: '/position/game-mode-ranked.png',
   modeCustom: '/position/game-mode-custom.png',
@@ -63,8 +61,7 @@ export function dashboardHTML(): string {
       ${chatRoomHTML()}
 
       <div class="dash-scroll" id="dash-home">
-        <div class="dash-content">
-          <!-- HERO -->
+          <!-- HERO — full-bleed, image clipped above diagonal -->
           <section class="dash-hero">
             <div class="dash-hero-bg" aria-hidden="true">
               <div class="dash-hero-slides" id="hero-slides">
@@ -75,6 +72,9 @@ export function dashboardHTML(): string {
               </div>
               <div class="dash-hero-veil"></div>
             </div>
+            <svg class="dash-hero-slash" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <line x1="0" y1="75" x2="100" y2="80" />
+            </svg>
             <div class="dash-hero-body">
               <div class="dash-hero-copy">
                 <p class="dash-hero-eyebrow">Featured game</p>
@@ -106,23 +106,7 @@ export function dashboardHTML(): string {
             </div>
           </section>
 
-          <!-- GAMES LIBRARY -->
-          <section class="dash-section">
-            <div class="dash-section-head">
-              <div>
-                <h2 class="dash-section-title">Games</h2>
-                <p class="dash-section-desc">Your library — replace green placeholders with real cover art.</p>
-              </div>
-              <a class="dash-view-all gm-viewall" href="#">Browse all ${iconArrowRight()}</a>
-            </div>
-            <div class="dash-library">
-              ${gameCover(IMG.cover1, 'LINK', 'Competitive arena', 'Installed', true)}
-              ${gameCover(IMG.cover2, 'Neon Storm', 'Seasonal event', 'Play')}
-              ${gameCover(IMG.cover3, 'Training Grounds', 'Practice mode', 'Play')}
-              ${gameCover(IMG.cover4, 'Custom Lobbies', 'Private matches', 'Open')}
-            </div>
-          </section>
-
+        <div class="dash-content">
           <!-- GAME MODES -->
           <section class="dash-section">
             <div class="dash-section-head">
@@ -322,22 +306,6 @@ export function gameViewHTML(): string {
       </div>
     </div>
   </div>
-  `;
-}
-
-function gameCover(img: string, title: string, subtitle: string, cta: string, featured = false): string {
-  return `
-    <article class="lib-card${featured ? ' featured' : ''}">
-      <div class="lib-art">
-        <img src="${img}" alt="${title}" />
-        <span class="lib-ph-label">REPLACE IMAGE</span>
-      </div>
-      <div class="lib-body">
-        <h3 class="lib-title">${title}</h3>
-        <p class="lib-sub">${subtitle}</p>
-        <button type="button" class="lib-btn">${cta}</button>
-      </div>
-    </article>
   `;
 }
 

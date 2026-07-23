@@ -52,10 +52,7 @@ export function initInteractions(cb: InteractionCallbacks): void {
     if (q) showToast(`Searching “${q}”…`);
   });
 
-  // ——— Hero / library ———
-  dash.querySelectorAll<HTMLButtonElement>('.lib-btn').forEach((btn) => {
-    btn.addEventListener('click', () => openDownload());
-  });
+  // ——— Team / modes ———
   dash.querySelector('#join-team-btn')?.addEventListener('click', () => {
     showToast('Team applications open soon');
   });
@@ -80,7 +77,7 @@ export function initInteractions(cb: InteractionCallbacks): void {
       if (/MISSION/i.test(head)) openMissions();
       else if (/EVENT/i.test(head)) openEvent();
       else if (/NEWS/i.test(head)) openNewsList(collectArticles(dash));
-      else if (/MODE|Play|Games/i.test(head)) openDownload();
+      else if (/MODE|Play/i.test(head)) openDownload();
       else if (/Community/i.test(head)) openCommunity();
       else openDownload();
     });

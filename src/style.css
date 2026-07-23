@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700;800&family=Rajdhani:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Saira:wght@400;500;600;700&display=swap');
 @import './dashboard.css';
 @import './chat.css';
 @import './auth.css';
@@ -31,7 +31,7 @@ body,
   overflow: hidden;
   background: #0B0D10;
   color: var(--text);
-  font-family: 'Exo 2', system-ui, -apple-system, sans-serif;
+  font-family: Saira, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
