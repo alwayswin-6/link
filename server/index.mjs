@@ -290,7 +290,7 @@ if (existsSync(DIST)) {
   };
 
   const injectOgMeta = (html, origin) => {
-    const image = String(process.env.OG_IMAGE_URL || `${origin}/og-image.png`).trim();
+    const image = String(process.env.OG_IMAGE_URL || `${origin}/position/game-hero-placeholder.png`).trim();
     let out = html.replaceAll('__OG_ORIGIN__', origin);
     out = out.replace(/(<meta\s+property="og:url"\s+content=")[^"]*(")/i, `$1${origin}/$2`);
     out = out.replace(/(<meta\s+property="og:image"\s+content=")[^"]*(")/i, `$1${image}$2`);
