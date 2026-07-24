@@ -1,11 +1,11 @@
-/** Cosmetics (Discord-style nameplate / frame / profile effect) + sticker media helpers. */
+/** Cosmetics — Discord-style nameplates only (+ sticker media helpers). */
 
-export type CosmeticKind = 'nameplate' | 'frame' | 'effect';
+export type CosmeticKind = 'nameplate';
 export type MediaKind = 'sticker' | 'gif' | 'emoji';
 
 export type CosmeticItem = {
   id: string;
-  kind: CosmeticKind;
+  kind: CosmeticKind | string;
   name: string;
   previewUrl: string;
   assetUrl: string;
@@ -42,8 +42,8 @@ export function loadLocalEquipped(): EquippedCosmetics {
     const parsed = JSON.parse(raw) as Partial<EquippedCosmetics>;
     return {
       nameplateId: String(parsed.nameplateId || ''),
-      frameId: String(parsed.frameId || ''),
-      effectId: String(parsed.effectId || ''),
+      frameId: '',
+      effectId: '',
     };
   } catch {
     return { ...EMPTY_EQUIPPED };
@@ -51,22 +51,10 @@ export function loadLocalEquipped(): EquippedCosmetics {
 }
 
 export function saveLocalEquipped(eq: EquippedCosmetics): void {
-  localStorage.setItem(EQUIP_KEY, JSON.stringify(eq));
-}
-
-/** Wrap an avatar markup string with frame / effect layers. */
-export function cosmeticAvatarShell(
-  innerAvatarHtml: string,
-  opts: { frameUrl?: string; effectUrl?: string; sizeClass?: string } = {},
-): string {
-  const size = opts.sizeClass ? ` ${opts.sizeClass}` : '';
-  const frame = opts.frameUrl
-    ? `<img class="cos-frame" src="${opts.frameUrl.replace(/"/g, '&quot;')}" alt="" draggable="false" />`
-    : '';
-  const effect = opts.effectUrl
-    ? `<img class="cos-effect" src="${opts.effectUrl.replace(/"/g, '&quot;')}" alt="" draggable="false" />`
-    : '';
-  return `<span class="cos-avatar-shell${size}">${effect}<span class="cos-avatar-core">${innerAvatarHtml}</span>${frame}</span>`;
+  localStorage.setItem(
+    EQUIP_KEY,
+    JSON.stringify({ nameplateId: eq.nameplateId || '', frameId: '', effectId: '' }),
+  );
 }
 
 export function nameplateHtml(name: string, plateUrl?: string): string {

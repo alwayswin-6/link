@@ -1051,16 +1051,6 @@
   place-items: center;
 }
 .cos-avatar-core { position: relative; z-index: 1; display: inline-flex; }
-.cos-frame, .cos-effect {
-  position: absolute;
-  inset: -18%;
-  width: 136%;
-  height: 136%;
-  object-fit: contain;
-  pointer-events: none;
-  z-index: 2;
-}
-.cos-effect { z-index: 0; inset: -28%; width: 156%; height: 156%; opacity: 0.95; }
 .cos-nameplate {
   display: inline-flex;
   align-items: center;
@@ -1107,6 +1097,21 @@
 }
 .chat-member-row.has-nameplate .chat-member-plate {
   display: block;
+  /* Lift the art itself a bit (no black wash) */
+  filter: brightness(1.22) saturate(1.05) contrast(0.96);
+}
+.chat-member-row.has-nameplate .chat-member-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Soft mint wash — lightens plate so white name / green status pop */
+  background: linear-gradient(
+    90deg,
+    rgba(186, 232, 205, 0.42) 0%,
+    rgba(220, 245, 230, 0.34) 45%,
+    rgba(186, 232, 205, 0.4) 100%
+  );
+  pointer-events: none;
 }
 .chat-member-row > :not(.chat-member-plate) {
   position: relative;
@@ -1118,23 +1123,36 @@
 .chat-member-row.has-nameplate:hover {
   background: transparent;
 }
+.chat-member-row.has-nameplate:hover .chat-member-plate::after {
+  background: linear-gradient(
+    90deg,
+    rgba(186, 232, 205, 0.5) 0%,
+    rgba(230, 250, 238, 0.4) 45%,
+    rgba(186, 232, 205, 0.48) 100%
+  );
+}
 .chat-member-name {
   flex: 1;
   min-width: 0;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  color: #f4f7f5;
+  text-shadow:
+    0 0 8px rgba(20, 40, 28, 0.55),
+    0 1px 2px rgba(20, 40, 28, 0.45);
 }
 .chat-member-status {
   margin-left: auto;
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--chat-accent-bright);
-  font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  color: #7ddea8;
+  font-weight: 800;
+  text-shadow:
+    0 0 8px rgba(20, 40, 28, 0.45),
+    0 1px 2px rgba(20, 40, 28, 0.35);
 }
 .chat-member-row.is-offline .chat-member-status {
   color: var(--dash-muted, #9A9FA8);
@@ -1170,21 +1188,21 @@
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  filter: brightness(1.22) saturate(1.05) contrast(0.96);
 }
-.chat-user-hero .chat-user-effect,
+.chat-user-plate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(220, 245, 230, 0.38) 0%,
+    rgba(186, 232, 205, 0.32) 100%
+  );
+  pointer-events: none;
+}
 .chat-user-hero .chat-conv-avatar {
   position: relative;
-  z-index: 1;
-}
-.chat-user-effect {
-  position: absolute;
-  inset: -10% 20%;
-  width: auto;
-  height: 120%;
-  max-width: 160px;
-  margin: 0 auto;
-  object-fit: contain;
-  pointer-events: none;
   z-index: 1;
 }
 .chat-user-detail-name {

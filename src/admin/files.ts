@@ -270,23 +270,17 @@ export function renderFilesPage(opts: { superAdmin?: boolean } = {}): string {
       opts.superAdmin
         ? `
     <section class="admin-panel admin-cos-panel">
-      <h3>Shop cosmetics (dual upload)</h3>
+      <h3>Shop nameplates (dual upload)</h3>
       <p class="admin-files-hint">
-        Upload a <strong>preview image</strong> (shown in Shop / chat) and a <strong>downloadable asset</strong> together.
-        Players who equip a card download the asset immediately. Kinds: nameplate, frame, effect.
+        Upload a <strong>preview image</strong> (shown in Shop / chat Details) and a <strong>downloadable asset</strong> together.
+        Players who equip a card download the asset immediately.
       </p>
       <div class="admin-dual-form">
-        <label>Kind
-          <select id="cos-kind">
-            <option value="nameplate">Nameplate</option>
-            <option value="frame">Frame</option>
-            <option value="effect">Profile effect</option>
-          </select>
-        </label>
-        <label>Name <input type="text" id="cos-name" maxlength="64" placeholder="Neon Edge Frame" /></label>
+        <input type="hidden" id="cos-kind" value="nameplate" />
+        <label>Name <input type="text" id="cos-name" maxlength="64" placeholder="Neon Edge Nameplate" /></label>
         <label>Preview image <input type="file" id="cos-preview" accept="image/png,image/jpeg,image/webp,image/gif" /></label>
         <label>Asset file <input type="file" id="cos-asset" accept="image/*,.zip,.json,application/zip,application/json" /></label>
-        <button type="button" class="admin-mini admin-upload-send" id="cos-send">Upload cosmetic</button>
+        <button type="button" class="admin-mini admin-upload-send" id="cos-send">Upload nameplate</button>
       </div>
       <div id="cos-list" class="admin-cos-list"><p class="admin-files-empty">Loading…</p></div>
     </section>
@@ -568,7 +562,7 @@ function dualListHtml(items: CosmeticAdminItem[], delAttr: string): string {
 function bindCosmeticsAdmin(root: HTMLElement, toast: (msg: string) => void): void {
   const listEl = root.querySelector<HTMLElement>('#cos-list');
   const send = root.querySelector<HTMLButtonElement>('#cos-send');
-  const kindEl = root.querySelector<HTMLSelectElement>('#cos-kind');
+  const kindEl = root.querySelector<HTMLInputElement | HTMLSelectElement>('#cos-kind');
   const nameEl = root.querySelector<HTMLInputElement>('#cos-name');
   const previewEl = root.querySelector<HTMLInputElement>('#cos-preview');
   const assetEl = root.querySelector<HTMLInputElement>('#cos-asset');
@@ -576,14 +570,14 @@ function bindCosmeticsAdmin(root: HTMLElement, toast: (msg: string) => void): vo
 
   const refresh = async () => {
     try {
-      const items = await listAdminCosmetics();
+      const items = (await listAdminCosmetics()).filter((i) => i.kind === 'nameplate');
       listEl.innerHTML = dualListHtml(items, 'cos-del');
       listEl.querySelectorAll<HTMLButtonElement>('[data-cos-del]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-          if (!confirm('Delete this cosmetic?')) return;
+          if (!confirm('Delete this nameplate?')) return;
           try {
             await deleteCosmetic(btn.dataset.cosDel!);
-            toast('Cosmetic deleted');
+            toast('Nameplate deleted');
             await refresh();
           } catch (err) {
             toast((err as Error).message);
@@ -606,12 +600,12 @@ function bindCosmeticsAdmin(root: HTMLElement, toast: (msg: string) => void): vo
     send.textContent = 'Uploading…';
     try {
       await uploadCosmeticDual({
-        kind: kindEl.value,
+        kind: 'nameplate',
         name: nameEl.value.trim() || preview.name,
         preview,
         asset,
       });
-      toast('Cosmetic uploaded');
+      toast('Nameplate uploaded');
       nameEl.value = '';
       previewEl.value = '';
       assetEl.value = '';
@@ -620,7 +614,7 @@ function bindCosmeticsAdmin(root: HTMLElement, toast: (msg: string) => void): vo
       toast((err as Error).message);
     } finally {
       send.disabled = false;
-      send.textContent = 'Upload cosmetic';
+      send.textContent = 'Upload nameplate';
     }
   });
 

@@ -1,7 +1,7 @@
 import { getAuthToken, getAuthUser, getUserAvatarSrc, openModPanel, uploadAvatar } from './auth';
 import { showToast } from './ui';
 import { openDiscordInvite } from './discord';
-import { saveLocalEquipped, loadLocalEquipped, type CosmeticItem, type CosmeticKind } from './cosmetics';
+import { saveLocalEquipped, loadLocalEquipped, type CosmeticItem } from './cosmetics';
 
 export interface PageDescriptor {
   id: string;
@@ -722,31 +722,24 @@ export function openInventory(): void {
   });
 }
 
-/** Discord-style cosmetics shop — card click downloads asset + equips preview. */
+/** Discord-style nameplate shop — card click downloads asset + equips preview. */
 export function openShop(): void {
   cb.setActiveNav('shop');
-  let kind: CosmeticKind | 'all' = 'all';
   let items: CosmeticItem[] = [];
   let equipped = loadLocalEquipped();
 
   openPage({
     id: 'shop',
     title: 'Shop',
-    subtitle: 'Nameplates, frames & profile effects',
+    subtitle: 'Nameplates',
     html: `
       <div class="shop-view">
         <section class="shop-hero">
           <p class="inv-eyebrow">Cosmetics · Live catalog</p>
-          <h2 class="inv-hero-title">Equip your <span class="dl-accent">look</span></h2>
+          <h2 class="inv-hero-title">Equip your <span class="dl-accent">nameplate</span></h2>
           <p class="inv-hero-text">
-            Pick a card to download its asset pack and equip the preview instantly — Discord-style nameplates, avatar frames, and profile effects.
+            Pick a card to download its asset pack and equip the preview instantly. Nameplates show in chat Details.
           </p>
-          <div class="shop-tabs" id="shop-tabs">
-            <button type="button" class="shop-tab active" data-kind="all">All</button>
-            <button type="button" class="shop-tab" data-kind="nameplate">Nameplates</button>
-            <button type="button" class="shop-tab" data-kind="frame">Frames</button>
-            <button type="button" class="shop-tab" data-kind="effect">Effects</button>
-          </div>
         </section>
         <section class="shop-grid" id="shop-grid"><p class="page-text">Loading shop…</p></section>
       </div>
@@ -756,23 +749,20 @@ export function openShop(): void {
       const token = getAuthToken();
 
       const render = () => {
-        const list = kind === 'all' ? items : items.filter((i) => i.kind === kind);
+        const list = items.filter((i) => i.kind === 'nameplate');
         if (!list.length) {
-          grid.innerHTML = `<p class="page-text">No cosmetics uploaded yet. Super Admin can add preview + asset pairs in File Manager.</p>`;
+          grid.innerHTML = `<p class="page-text">No nameplates uploaded yet. Super Admin can add preview + asset pairs in File Manager.</p>`;
           return;
         }
         grid.innerHTML = list
           .map((item) => {
-            const active =
-              (item.kind === 'nameplate' && equipped.nameplateId === item.id) ||
-              (item.kind === 'frame' && equipped.frameId === item.id) ||
-              (item.kind === 'effect' && equipped.effectId === item.id);
+            const active = equipped.nameplateId === item.id;
             return `
-            <article class="shop-card${active ? ' is-equipped' : ''}" data-id="${esc(item.id)}" data-kind="${esc(item.kind)}">
+            <article class="shop-card${active ? ' is-equipped' : ''}" data-id="${esc(item.id)}" data-kind="nameplate">
               <div class="shop-card-preview"><img src="${esc(item.previewUrl)}" alt="" loading="lazy" /></div>
               <div class="shop-card-meta">
                 <strong>${esc(item.name)}</strong>
-                <span>${esc(item.kind)}</span>
+                <span>nameplate</span>
               </div>
               <button type="button" class="shop-card-btn">${active ? 'Equipped' : 'Get & Equip'}</button>
             </article>`;
@@ -782,10 +772,8 @@ export function openShop(): void {
           card.querySelector('button')?.addEventListener('click', async (e) => {
             e.stopPropagation();
             const id = card.dataset.id!;
-            const k = card.dataset.kind as CosmeticKind;
             const item = items.find((i) => i.id === id);
             if (!item) return;
-            // Immediate asset download
             const a = document.createElement('a');
             a.href = item.assetUrl;
             a.download = '';
@@ -804,11 +792,15 @@ export function openShop(): void {
                   'Content-Type': 'application/json',
                   Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ kind: k, id }),
+                body: JSON.stringify({ kind: 'nameplate', id }),
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok || !data.ok) throw new Error(data.error || 'Equip failed');
-              equipped = data.equipped;
+              equipped = {
+                nameplateId: data.equipped?.nameplateId || id,
+                frameId: '',
+                effectId: '',
+              };
               saveLocalEquipped(equipped);
               showToast(`Equipped ${item.name}`);
               render();
@@ -820,24 +812,20 @@ export function openShop(): void {
         });
       };
 
-      root.querySelector('#shop-tabs')?.addEventListener('click', (e) => {
-        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-kind]');
-        if (!btn?.dataset.kind) return;
-        kind = btn.dataset.kind as CosmeticKind | 'all';
-        root.querySelectorAll('.shop-tab').forEach((b) => b.classList.toggle('active', b === btn));
-        render();
-      });
-
       void (async () => {
         try {
-          const res = await fetch('/api/cosmetics');
+          const res = await fetch('/api/cosmetics?kind=nameplate');
           const data = await res.json().catch(() => ({}));
           items = Array.isArray(data.items) ? data.items : [];
           if (token) {
             const me = await fetch('/api/cosmetics/me', { headers: { Authorization: `Bearer ${token}` } });
             const mine = await me.json().catch(() => ({}));
             if (mine.ok && mine.equipped) {
-              equipped = mine.equipped;
+              equipped = {
+                nameplateId: mine.equipped.nameplateId || '',
+                frameId: '',
+                effectId: '',
+              };
               saveLocalEquipped(equipped);
             }
           }

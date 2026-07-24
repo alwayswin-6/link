@@ -41,8 +41,8 @@ export function dashboardHTML(): string {
           <button type="button" class="dash-icon-btn has-dot" id="topbar-chat" aria-label="Open chat" title="Chat">${iconChat()}</button>
           <button type="button" class="dash-icon-btn has-dot" aria-label="Notifications">${iconBell()}</button>
           <button type="button" class="dash-user-chip" id="auth-user-chip" hidden>
-            <span class="dash-user-avatar cos-avatar-shell sm" id="dash-user-cos">
-              <span class="cos-avatar-core"><img class="dash-fill" src="/position/defult.png" alt="Player avatar" /></span>
+            <span class="dash-user-avatar" id="dash-user-cos">
+              <img class="dash-fill" src="/position/defult.png" alt="Player avatar" />
             </span>
             <span class="dash-user-meta">
               <span class="dash-online-dot" title="Online" aria-label="Online"></span>

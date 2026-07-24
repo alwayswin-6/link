@@ -330,30 +330,10 @@
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  overflow: visible;
+  overflow: hidden;
   background: var(--dash-panel-2);
   position: relative;
   flex-shrink: 0;
-}
-.dash-user-avatar.cos-avatar-shell {
-  overflow: visible;
-}
-.dash-user-avatar .cos-avatar-core {
-  width: 100%;
-  height: 100%;
-  border-radius: 9px;
-  overflow: hidden;
-}
-.dash-user-avatar .cos-frame,
-.dash-user-avatar .cos-effect {
-  inset: -22%;
-  width: 144%;
-  height: 144%;
-}
-.dash-user-name .cos-nameplate {
-  font-size: 12px;
-  min-height: 18px;
-  padding: 1px 8px;
 }
 
 .dash-fill {

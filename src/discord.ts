@@ -1,6 +1,6 @@
 /** Shared Discord invite opener for launcher + chat voice. */
 
-const FALLBACK = 'https://discord.com/';
+const FALLBACK = 'https://discord.gg/vYZH5jh7es';
 
 export function discordInviteUrl(): string {
   const fromEnv = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_DISCORD_INVITE;

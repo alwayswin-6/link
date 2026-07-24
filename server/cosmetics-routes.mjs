@@ -97,17 +97,14 @@ export function createCosmeticsPublicRouter() {
       const body = req.body || {};
       const kind = String(body.kind || '');
       const id = String(body.id || '');
-      if (!['nameplate', 'frame', 'effect'].includes(kind)) {
-        return res.status(400).json({ ok: false, error: 'Invalid kind.' });
+      if (!['nameplate'].includes(kind)) {
+        return res.status(400).json({ ok: false, error: 'Only nameplates are supported.' });
       }
       if (id) {
         const item = await getCosmetic(id);
         if (!item || item.kind !== kind) return res.status(404).json({ ok: false, error: 'Item not found.' });
       }
-      const patch = {};
-      if (kind === 'nameplate') patch.nameplateId = id;
-      if (kind === 'frame') patch.frameId = id;
-      if (kind === 'effect') patch.effectId = id;
+      const patch = { nameplateId: id, frameId: '', effectId: '' };
       const equipped = await setUserEquipped(user.id, patch);
       const resolved = await getEquippedResolved(user.id);
       return res.json({ ok: true, equipped, ...resolved });
@@ -167,7 +164,7 @@ export function attachCosmeticsAdminRoutes(router, { requireAdmin, requireSuperA
       }
       try {
         const saved = await saveCosmetic({
-          kind: String(req.body.kind || 'frame'),
+          kind: 'nameplate',
           name: String(req.body.name || preview.originalname || 'Cosmetic'),
           previewBuf: preview.buffer,
           previewMime: preview.mimetype,

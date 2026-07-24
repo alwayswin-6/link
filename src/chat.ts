@@ -4,7 +4,6 @@ import { getAuthToken, openAuthModal } from './auth';
 import { showToast } from './ui';
 import { VoiceRoom, voiceRoomKey } from './voice';
 import {
-  cosmeticAvatarShell,
   memberNameplateRow,
   type MediaItem,
 } from './cosmetics';
@@ -365,7 +364,7 @@ export class ChatApp {
   private infoOpen = typeof window !== 'undefined' ? window.innerWidth >= 1100 : true;
   private infoUserId: string | null = null;
   private replyTo: { id: string; text: string; fromName: string } | null = null;
-  private cosmeticsCache = new Map<string, { frameUrl?: string; effectUrl?: string; nameplateUrl?: string }>();
+  private cosmeticsCache = new Map<string, { nameplateUrl?: string }>();
   private mediaStickers: MediaItem[] = [];
   private mediaGifs: MediaItem[] = [];
   private mediaTab: 'emoji' | 'sticker' | 'gif' = 'emoji';
@@ -1808,14 +1807,12 @@ export class ChatApp {
     this.el('#chat-emoji-panel').hidden = true;
   }
 
-  private async loadCosmeticsFor(userId: string): Promise<{ frameUrl?: string; effectUrl?: string; nameplateUrl?: string }> {
+  private async loadCosmeticsFor(userId: string): Promise<{ nameplateUrl?: string }> {
     if (this.cosmeticsCache.has(userId)) return this.cosmeticsCache.get(userId)!;
     try {
       const res = await fetch(`/api/cosmetics/equipped/${encodeURIComponent(userId)}`);
       const data = await res.json().catch(() => ({}));
       const resolved = {
-        frameUrl: data.frame?.previewUrl as string | undefined,
-        effectUrl: data.effect?.previewUrl as string | undefined,
         nameplateUrl: data.nameplate?.previewUrl as string | undefined,
       };
       this.cosmeticsCache.set(userId, resolved);
@@ -1830,11 +1827,7 @@ export class ChatApp {
   private memberRow(id: string, live: boolean): string {
     const name = this.names.get(id) ?? 'Player';
     const cos = this.cosmeticsCache.get(id) || {};
-    const ava = cosmeticAvatarShell(avatarHtml(name, '', this.avatars.get(id) || ''), {
-      frameUrl: cos.frameUrl,
-      effectUrl: cos.effectUrl,
-      sizeClass: 'sm',
-    });
+    const ava = avatarHtml(name, '', this.avatars.get(id) || '');
     return memberNameplateRow({
       userId: id,
       name,
@@ -1938,11 +1931,7 @@ export class ChatApp {
     const live = this.online.has(userId);
     const ava = this.avatars.get(userId) || '';
     const cos = await this.loadCosmeticsFor(userId);
-    const shell = cosmeticAvatarShell(avatarHtml(name, 'xl', ava), {
-      frameUrl: cos.frameUrl,
-      effectUrl: cos.effectUrl,
-      sizeClass: 'xl',
-    });
+    const shell = avatarHtml(name, 'xl', ava);
     const body = `
       ${embedInDm ? '' : `<button type="button" class="chat-info-back" id="chat-info-back-members">← Members</button>`}
         <div class="chat-user-detail">
@@ -1950,16 +1939,10 @@ export class ChatApp {
           cos.nameplateUrl ? ` style="--cos-plate:url('${cos.nameplateUrl.replace(/'/g, '%27')}')"` : ''
         }>
           ${cos.nameplateUrl ? `<span class="chat-user-plate" aria-hidden="true"></span>` : ''}
-          ${cos.effectUrl ? `<img class="chat-user-effect" src="${escapeHtml(cos.effectUrl)}" alt="" />` : ''}
           <span class="chat-conv-avatar xl-wrap cos-detail">${shell}${statusDot(live)}</span>
         </div>
         <h4 class="chat-user-detail-name">${escapeHtml(name)}</h4>
         <p>${live ? 'Online' : 'Offline'}${userId === this.me?.id ? ' · You' : ''}</p>
-        <div class="chat-user-cos-meta">
-          <span>Frame ${cos.frameUrl ? 'equipped' : 'default'}</span>
-          <span>Effect ${cos.effectUrl ? 'equipped' : 'none'}</span>
-          <span>Nameplate ${cos.nameplateUrl ? 'equipped' : 'default'}</span>
-        </div>
         ${
           userId !== this.me?.id
             ? `<button type="button" class="chat-join-btn" id="chat-info-dm" style="margin-top:14px;min-width:0;width:100%">Message</button>`
@@ -1967,7 +1950,6 @@ export class ChatApp {
         }
       </div>`;
     if (embedInDm) {
-      // DM already painted profile — enhance avatar shell
       const profile = this.root.querySelector('.chat-info-profile .chat-conv-avatar');
       if (profile) profile.innerHTML = `${shell}${statusDot(live)}`;
       return;

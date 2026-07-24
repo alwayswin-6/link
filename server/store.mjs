@@ -1454,7 +1454,7 @@ export async function saveCosmetic({ kind, name, previewBuf, previewMime, assetB
   const { previewName, assetName } = writeDualFiles(COSMETICS_DIR, id, previewBuf, previewExt, assetBuf, assetExt);
   const item = {
     id,
-    kind: ['nameplate', 'frame', 'effect'].includes(kind) ? kind : 'frame',
+  kind: ['nameplate'].includes(kind) ? kind : 'nameplate',
     name: String(name || 'Cosmetic').slice(0, 64),
     previewUrl: `/api/cosmetics/file/${previewName}`,
     assetUrl: `/api/cosmetics/file/${assetName}`,
