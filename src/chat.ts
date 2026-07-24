@@ -5,9 +5,10 @@ import { showToast } from './ui';
 import { VoiceRoom, voiceRoomKey } from './voice';
 import {
   cosmeticAvatarShell,
-  nameplateHtml,
+  memberNameplateRow,
   type MediaItem,
 } from './cosmetics';
+import { BUILTIN_STICKERS, BUILTIN_GIFS } from './builtin-media';
 
 export type ChatKind = 'group' | 'dm';
 export type Delivery = 'sending' | 'sent' | 'delivered';
@@ -1039,8 +1040,28 @@ export class ChatApp {
     arr.push(msg);
     this.messages.set(this.activeId, arr);
     this.lastTs.set(this.activeId, msg.ts);
-    this.appendBubble(msg, true);
-    this.renderList();
+    this.appendBubble(msg, true, true);
+    this.patchConvPreview(this.activeId);
+  }
+
+  /** Scroll the thread to the latest message; re-run after media images load. */
+  private scrollMessagesToEnd(node?: HTMLElement | null): void {
+    const box = this.el('#chat-messages');
+    const go = () => {
+      box.style.scrollBehavior = 'auto';
+      box.scrollTop = box.scrollHeight;
+      box.style.scrollBehavior = '';
+    };
+    go();
+    requestAnimationFrame(() => {
+      go();
+      requestAnimationFrame(go);
+    });
+    node?.querySelectorAll('img').forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener('load', go, { once: true });
+      img.addEventListener('error', go, { once: true });
+    });
   }
 
   private submit(): void {
@@ -1629,7 +1650,7 @@ export class ChatApp {
       </article>`;
   }
 
-  private appendBubble(m: Msg, animate: boolean): void {
+  private appendBubble(m: Msg, animate: boolean, forceScroll = false): void {
     const box = this.el('#chat-messages');
     box.querySelector('.chat-empty-main')?.remove();
     if (!box.querySelector('.chat-day') && !m.system) {
@@ -1654,10 +1675,8 @@ export class ChatApp {
       );
     }
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
-    if (nearBottom) {
-      box.style.scrollBehavior = 'auto';
-      box.scrollTop = box.scrollHeight;
-      box.style.scrollBehavior = '';
+    if (forceScroll || m.mine || nearBottom) {
+      this.scrollMessagesToEnd(node);
     }
   }
 
@@ -1696,7 +1715,7 @@ export class ChatApp {
       const live = this.online.has(id);
       row.classList.toggle('is-online', live);
       row.classList.toggle('is-offline', !live);
-      const tag = row.querySelector(':scope > span:last-child');
+      const tag = row.querySelector('.chat-member-status') || row.querySelector(':scope > span:last-child');
       if (tag) tag.textContent = id === this.me?.id ? 'You' : live ? 'Online' : 'Offline';
     });
   }
@@ -1728,11 +1747,13 @@ export class ChatApp {
       ]);
       const sData = await sRes.json().catch(() => ({}));
       const gData = await gRes.json().catch(() => ({}));
-      this.mediaStickers = Array.isArray(sData.items) ? sData.items : [];
-      this.mediaGifs = Array.isArray(gData.items) ? gData.items : [];
+      const uploadedStickers: MediaItem[] = Array.isArray(sData.items) ? sData.items : [];
+      const uploadedGifs: MediaItem[] = Array.isArray(gData.items) ? gData.items : [];
+      this.mediaStickers = [...BUILTIN_STICKERS, ...uploadedStickers];
+      this.mediaGifs = [...BUILTIN_GIFS, ...uploadedGifs];
     } catch {
-      this.mediaStickers = [];
-      this.mediaGifs = [];
+      this.mediaStickers = [...BUILTIN_STICKERS];
+      this.mediaGifs = [...BUILTIN_GIFS];
     }
     this.renderMediaPanes();
   }
@@ -1740,22 +1761,20 @@ export class ChatApp {
   private renderMediaPanes(): void {
     const stickerPane = this.el('#chat-media-sticker');
     const gifPane = this.el('#chat-media-gif');
-    stickerPane.innerHTML = this.mediaStickers.length
-      ? this.mediaStickers
-          .map(
-            (m) =>
-              `<button type="button" class="chat-media-card" data-media-kind="sticker" data-media-url="${escapeHtml(m.assetUrl)}" title="${escapeHtml(m.name)}"><img src="${escapeHtml(m.previewUrl)}" alt="" loading="lazy" /></button>`,
-          )
-          .join('')
-      : `<p class="chat-media-empty">No stickers yet. Super Admin can upload them in the Shop admin tools.</p>`;
-    gifPane.innerHTML = this.mediaGifs.length
-      ? this.mediaGifs
-          .map(
-            (m) =>
-              `<button type="button" class="chat-media-card" data-media-kind="gif" data-media-url="${escapeHtml(m.assetUrl)}" title="${escapeHtml(m.name)}"><img src="${escapeHtml(m.previewUrl)}" alt="" loading="lazy" /></button>`,
-          )
-          .join('')
-      : `<p class="chat-media-empty">No GIFs yet. Super Admin can upload them in the Shop admin tools.</p>`;
+    const stickers = this.mediaStickers.length ? this.mediaStickers : BUILTIN_STICKERS;
+    const gifs = this.mediaGifs.length ? this.mediaGifs : BUILTIN_GIFS;
+    stickerPane.innerHTML = stickers
+      .map(
+        (m) =>
+          `<button type="button" class="chat-media-card" data-media-kind="sticker" data-media-url="${escapeHtml(m.assetUrl)}" title="${escapeHtml(m.name)}"><img src="${escapeHtml(m.previewUrl)}" alt="" loading="lazy" /></button>`,
+      )
+      .join('');
+    gifPane.innerHTML = gifs
+      .map(
+        (m) =>
+          `<button type="button" class="chat-media-card" data-media-kind="gif" data-media-url="${escapeHtml(m.assetUrl)}" title="${escapeHtml(m.name)}"><img src="${escapeHtml(m.previewUrl)}" alt="" loading="lazy" /></button>`,
+      )
+      .join('');
   }
 
   private async sendMediaChip(kind: 'sticker' | 'gif', url: string): Promise<void> {
@@ -1816,11 +1835,14 @@ export class ChatApp {
       effectUrl: cos.effectUrl,
       sizeClass: 'sm',
     });
-    return `<li class="${live ? 'is-online' : 'is-offline'}" data-user-id="${escapeHtml(id)}" role="button" tabindex="0">
-      <span class="chat-conv-avatar sm">${ava}${statusDot(live)}</span>
-      ${nameplateHtml(name, cos.nameplateUrl)}
-      <span>${id === this.me?.id ? 'You' : live ? 'Online' : 'Offline'}</span>
-    </li>`;
+    return memberNameplateRow({
+      userId: id,
+      name,
+      statusLabel: id === this.me?.id ? 'You' : live ? 'Online' : 'Offline',
+      live,
+      avatarShellHtml: `${ava}${statusDot(live)}`,
+      nameplateUrl: cos.nameplateUrl,
+    });
   }
 
   private renderInfo(): void {
@@ -1923,12 +1945,15 @@ export class ChatApp {
     });
     const body = `
       ${embedInDm ? '' : `<button type="button" class="chat-info-back" id="chat-info-back-members">← Members</button>`}
-      <div class="chat-user-detail">
-        <div class="chat-user-hero">
+        <div class="chat-user-detail">
+        <div class="chat-user-hero${cos.nameplateUrl ? ' has-nameplate' : ''}"${
+          cos.nameplateUrl ? ` style="--cos-plate:url('${cos.nameplateUrl.replace(/'/g, '%27')}')"` : ''
+        }>
+          ${cos.nameplateUrl ? `<span class="chat-user-plate" aria-hidden="true"></span>` : ''}
           ${cos.effectUrl ? `<img class="chat-user-effect" src="${escapeHtml(cos.effectUrl)}" alt="" />` : ''}
           <span class="chat-conv-avatar xl-wrap cos-detail">${shell}${statusDot(live)}</span>
         </div>
-        <h4>${nameplateHtml(name, cos.nameplateUrl)}</h4>
+        <h4 class="chat-user-detail-name">${escapeHtml(name)}</h4>
         <p>${live ? 'Online' : 'Offline'}${userId === this.me?.id ? ' · You' : ''}</p>
         <div class="chat-user-cos-meta">
           <span>Frame ${cos.frameUrl ? 'equipped' : 'default'}</span>

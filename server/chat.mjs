@@ -30,6 +30,23 @@ function isGroupId(id) {
   return String(id || '').startsWith('group:');
 }
 
+/** Allow uploaded packs + built-in Twemoji / party-parrot CDN emotes. */
+function isAllowedChatMediaUrl(url) {
+  const u = String(url || '');
+  if (!u) return false;
+  if (u.startsWith('/api/media-pack/') || u.startsWith('/api/chat-media/') || u.startsWith('/emotes/')) return true;
+  try {
+    const parsed = new URL(u);
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'cdn.jsdelivr.net' && parsed.pathname.includes('/twitter/twemoji@')) return true;
+    if (host === 'cultofthepartyparrot.com') return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function ensureMediaDir() {
   if (!existsSync(MEDIA_DIR)) mkdirSync(MEDIA_DIR, { recursive: true });
 }
@@ -436,8 +453,8 @@ export function attachChat(server) {
         if (!text && !imageUrl && !audioUrl && !stickerUrl && !gifUrl) return;
         if (imageUrl && !imageUrl.startsWith('/api/chat-media/') && !imageUrl.startsWith('/api/media-pack/')) return;
         if (audioUrl && !audioUrl.startsWith('/api/chat-media/')) return;
-        if (stickerUrl && !stickerUrl.startsWith('/api/media-pack/')) return;
-        if (gifUrl && !gifUrl.startsWith('/api/media-pack/') && !gifUrl.startsWith('/api/chat-media/')) return;
+        if (stickerUrl && !isAllowedChatMediaUrl(stickerUrl)) return;
+        if (gifUrl && !isAllowedChatMediaUrl(gifUrl)) return;
 
         const to = msg.to === GLOBAL ? GLOBAL : String(msg.to ?? '');
         if (!to) return;

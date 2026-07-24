@@ -74,3 +74,28 @@ export function nameplateHtml(name: string, plateUrl?: string): string {
   if (!plateUrl) return `<span class="cos-nameplate-text">${safe}</span>`;
   return `<span class="cos-nameplate" style="--cos-plate:url('${plateUrl.replace(/'/g, '%27')}')"><span>${safe}</span></span>`;
 }
+
+/** Discord-style full-bleed nameplate row for Details member lists. */
+export function memberNameplateRow(
+  opts: {
+    userId: string;
+    name: string;
+    statusLabel: string;
+    live: boolean;
+    avatarShellHtml: string;
+    nameplateUrl?: string;
+  },
+): string {
+  const safeId = opts.userId.replace(/"/g, '&quot;');
+  const safeName = opts.name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const plate = opts.nameplateUrl
+    ? ` style="--cos-plate:url('${opts.nameplateUrl.replace(/'/g, '%27')}')"`
+    : '';
+  const plateClass = opts.nameplateUrl ? ' has-nameplate' : '';
+  return `<li class="chat-member-row${plateClass} ${opts.live ? 'is-online' : 'is-offline'}" data-user-id="${safeId}" role="button" tabindex="0"${plate}>
+      <span class="chat-member-plate" aria-hidden="true"></span>
+      <span class="chat-conv-avatar sm chat-member-ava">${opts.avatarShellHtml}</span>
+      <span class="chat-member-name">${safeName}</span>
+      <span class="chat-member-status">${opts.statusLabel.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>
+    </li>`;
+}
