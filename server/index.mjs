@@ -273,6 +273,43 @@ if (existsSync(DIST)) {
 
   // SPA fallback for the player app (Express 5-safe; avoid bare "*")
   // Never swallow download endpoints — /secret and /f/* must stay API-owned.
+  // Inject absolute Open Graph URLs so Discord/Facebook embeds show a preview image.
+  const resolvePublicOrigin = (req) => {
+    const configured = String(process.env.APP_URL || process.env.API_PUBLIC_URL || '')
+      .trim()
+      .replace(/\/$/, '');
+    if (configured && !/127\.0\.0\.1|localhost/i.test(configured)) return configured;
+    const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https')
+      .split(',')[0]
+      .trim();
+    const host = String(req.headers['x-forwarded-host'] || req.get('host') || '')
+      .split(',')[0]
+      .trim();
+    if (host) return `${proto}://${host}`;
+    return configured || 'https://battlefield-link.onrender.com';
+  };
+
+  const injectOgMeta = (html, origin) => {
+    const image = String(process.env.OG_IMAGE_URL || `${origin}/og-image.png`).trim();
+    let out = html.replaceAll('__OG_ORIGIN__', origin);
+    out = out.replace(/(<meta\s+property="og:url"\s+content=")[^"]*(")/i, `$1${origin}/$2`);
+    out = out.replace(/(<meta\s+property="og:image"\s+content=")[^"]*(")/i, `$1${image}$2`);
+    out = out.replace(/(<meta\s+property="og:image:secure_url"\s+content=")[^"]*(")/i, `$1${image}$2`);
+    out = out.replace(/(<meta\s+name="twitter:image"\s+content=")[^"]*(")/i, `$1${image}$2`);
+    return out;
+  };
+
+  const sendSpaIndex = (req, res, next) => {
+    try {
+      const raw = readFileSync(join(DIST, 'index.html'), 'utf8');
+      const html = injectOgMeta(raw, resolvePublicOrigin(req));
+      res.setHeader('Cache-Control', 'no-cache');
+      return res.type('html').send(html);
+    } catch (err) {
+      return next(err);
+    }
+  };
+
   app.use((req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     const path = req.path || '';
@@ -287,9 +324,7 @@ if (existsSync(DIST)) {
     ) {
       return next();
     }
-    res.sendFile(join(DIST, 'index.html'), (err) => {
-      if (err) next(err);
-    });
+    return sendSpaIndex(req, res, next);
   });
 } else {
   console.warn('[api] dist/ not found — API only. Run `npm run build` for full deploy.');

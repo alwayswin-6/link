@@ -66,6 +66,15 @@ export default defineConfig({
   },
   plugins: [
     {
+      name: 'og-origin',
+      transformIndexHtml(html) {
+        const origin = String(process.env.APP_URL || process.env.VITE_APP_URL || 'https://battlefield-link.onrender.com')
+          .trim()
+          .replace(/\/$/, '');
+        return html.replaceAll('__OG_ORIGIN__', origin || 'https://battlefield-link.onrender.com');
+      },
+    },
+    {
       name: 'player-spa-fallback',
       configureServer(server) {
         // After Vite's internal middleware so real assets still resolve.
